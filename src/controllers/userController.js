@@ -2,6 +2,43 @@
 const db = require('../db/database');
 const bcrypt = require('bcryptjs');
 
+exports.checkSetupStatus = (req, res) => {
+    db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
+        if (err) return res.status(500).json({ error: 'DB Error' });
+        // If count > 0, system is initialized
+        res.json({ isInitialized: row.count > 0 });
+    });
+};
+
+// 2. Perform the initial Admin creation
+exports.initialSetup = async (req, res) => {
+    // Security Check: ONLY allow this if 0 users exist
+    db.get("SELECT COUNT(*) as count FROM users", async (err, row) => {
+        if (err) return res.status(500).json({ error: 'DB Error' });
+        
+        if (row.count > 0) {
+            return res.status(403).json({ error: 'System is already initialized. Cannot create admin.' });
+        }
+
+        const { username, email, password } = req.body;
+        if (!username || !email || !password) return res.status(400).json({ error: 'All fields required.' });
+
+        try {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            
+            // Force Role ID 1 (Admin)
+            const stmt = db.prepare("INSERT INTO users (username, email, password, role_id) VALUES (?, ?, ?, 1)");
+            stmt.run(username, email, hashedPassword, function(err) {
+                if (err) return res.status(500).json({ error: 'Failed to create admin.' });
+                res.json({ message: 'System initialized successfully.' });
+            });
+            stmt.finalize();
+        } catch (e) {
+            res.status(500).json({ error: 'Server error' });
+        }
+    });
+};
+
 /**
  * [ADMIN] Get a list of all users/accounts.
  */

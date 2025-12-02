@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login - Apex Systems</title>
+    <title>System Setup - Apex Systems</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -16,11 +16,12 @@
             background: #fff; 
             padding: 50px; 
             border-radius: 20px; 
-            width: 400px; 
+            width: 450px; 
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); 
             text-align: center;
         }
-        h2 { margin-bottom: 30px; color: #1f2937; }
+        h2 { margin-bottom: 10px; color: #1f2937; }
+        p { color: #6b7280; margin-bottom: 30px; font-size: 0.9rem; }
         label { display: block; text-align: left; margin-bottom: 5px; color: #6b7280; font-size: 0.9rem; font-weight: 500; }
         input { 
             width: 100%; padding: 12px; margin-bottom: 20px; 
@@ -41,38 +42,51 @@
 </head>
 <body>
     <div class="login-box">
-        <span class="logo">🦖</span>
-        <h2>Apex Systems</h2>
-        <form id="login-form">
+        <span class="logo">🚀</span>
+        <h2>Welcome to Apex</h2>
+        <p>No users found. Please create the <strong>System Administrator</strong> account to get started.</p>
+        
+        <form id="setup-form">
+            <label>Admin Username</label>
+            <input type="text" id="username" required placeholder="Admin">
+            
             <label>Email Address</label>
-            <input type="email" id="email" required placeholder="user@apex.com">
+            <input type="email" id="email" required placeholder="admin@apex.com">
+            
             <label>Password</label>
-            <input type="password" id="password" required placeholder="••••••••">
-            <button type="submit">Sign In</button>
+            <input type="password" id="password" required placeholder="Create a strong password">
+            
+            <button type="submit">Create Admin Account</button>
         </form>
         <div id="alert" style="color: #ef4444; margin-top: 15px; font-size: 0.9rem;"></div>
     </div>
     <script>
+        // Double check: If system is already set up, go to login
         fetch('/api/auth/setup-status')
-        .then(res => res.json())
-        .then(data => {
-            if (data.isInitialized === false) {
-                window.location.href = '/setup.html';
-            }
-        })
-        .catch(console.error);
-        
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            .then(res => res.json())
+            .then(data => {
+                if(data.isInitialized) window.location.href = '/login.html';
+            });
+
+        document.getElementById('setup-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const username = document.getElementById('username').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const res = await fetch('/api/auth/login', {
+
+            const res = await fetch('/api/auth/setup', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify({ username, email, password })
             });
-            if(res.ok) window.location.href = '/';
-            else document.getElementById('alert').innerText = "Invalid credentials. Please try again.";
+
+            if(res.ok) {
+                alert("Admin account created! Redirecting to login...");
+                window.location.href = '/login.html';
+            } else {
+                const err = await res.json();
+                document.getElementById('alert').innerText = err.error || "Setup failed.";
+            }
         });
     </script>
 </body>
