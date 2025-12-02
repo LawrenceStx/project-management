@@ -3,221 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apex Systems - Project Management</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Custom CSS -->
+    <title>Apex Systems</title>
     <link rel="stylesheet" href="/css/style.css">
-    <!-- Icons -->
+    <!-- Only using Bootstrap Icons, NO Bootstrap CSS framework -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
 <body>
 
-<!-- 1. MAIN APP WRAPPER (Everything visible in the background) -->
-<div id="app-wrapper">
-    <!-- START: Sidebar -->
-    <aside id="sidebar">
-        <a href="/" class="apex-logo">
-            <!-- Dinosaur Logo -->
-            🦖 Apex <span>Systems</span>
-        </a>
+<!-- Sidebar -->
+<aside>
+    <a href="/" class="brand">🦖 Apex <span>Systems</span></a>
+    
+    <select id="global-project-selector">
+        <option disabled selected>Select Project...</option>
+    </select>
 
-        <!-- Global Project Selector -->
-        <div class="px-3 mb-4">
-            <select class="form-select form-select-sm bg-dark text-light border-0" id="global-project-selector">
-                <option selected disabled>Select Project...</option>
-                <!-- Project options will be loaded here -->
-            </select>
+    <nav>
+        <li class="nav-item"><a href="#" class="nav-link active" data-page="dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+        <li class="nav-item"><a href="#" class="nav-link" data-page="tasks"><i class="bi bi-list-check"></i> Tasks</a></li>
+        <li class="nav-item"><a href="#" class="nav-link" data-page="gantt"><i class="bi bi-bar-chart-steps"></i> Gantt (Events)</a></li>
+        <li class="nav-item"><a href="#" class="nav-link" data-page="members"><i class="bi bi-people"></i> Members</a></li>
+        <li class="nav-item"><a href="#" class="nav-link" data-page="projects"><i class="bi bi-folder"></i> Projects</a></li>
+        <li class="nav-item"><a href="#" class="nav-link" data-page="announcements"><i class="bi bi-megaphone"></i> Announcements</a></li>
+        <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top:10px;">
+            <li class="nav-item"><a href="#" class="nav-link" data-page="logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
         </div>
-        
-        <!-- Navigation -->
-        <ul class="nav flex-column">
-            <li class="nav-item">
-                <a class="nav-link active" href="#" data-page="dashboard"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#" data-page="tasks"><i class="bi bi-list-task me-2"></i> Tasks</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#" data-page="gantt"><i class="bi bi-graph-up-arrow me-2"></i> Gantt Chart</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#" data-page="members"><i class="bi bi-people-fill me-2"></i> Members</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#" data-page="projects"><i class="bi bi-folder-fill me-2"></i> Projects (Admin)</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#" data-page="accounts"><i class="bi bi-person-circle me-2"></i> Accounts (Admin)</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#" data-page="announcements"><i class="bi bi-megaphone me-2"></i> Announcements</a>
-            </li>
-        </ul>
-        
-        <hr class="mx-3 text-secondary">
-        
-        <ul class="nav flex-column">
-            <li class="nav-item">
-                <a class="nav-link" href="#" data-page="settings"><i class="bi bi-gear-fill me-2"></i> Settings</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#" data-page="logout"><i class="bi bi-box-arrow-right me-2"></i> Logout</a>
-            </li>
-        </ul>
-    </aside>
-    <!-- END: Sidebar -->
+    </nav>
+</aside>
 
-    <!-- START: Main Content Wrapper -->
-    <div id="main-content-wrapper">
-        <!-- Header -->
-        <header id="main-header" class="d-flex justify-content-between align-items-center">
-            <h4 class="mb-0 text-white-50" id="current-project-display">Project: (None Selected)</h4>
+<!-- Main Content -->
+<div id="main-wrapper">
+    <header>
+        <h3 id="current-project-display">No Project Selected</h3>
+        <div>
+            <span id="user-display">User</span>
+        </div>
+    </header>
+
+    <main id="main-content">
+        <!-- Dynamic Content Here -->
+    </main>
+</div>
+
+<!-- CUSTOM MODALS (New Structure) -->
+
+<!-- Event Modal (For Gantt CRUD) -->
+<div id="eventModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="flex-between mb-2">
+            <h3>Manage Event</h3>
+            <button class="btn btn-outline" onclick="closeModal('eventModal')">X</button>
+        </div>
+        <form id="event-form">
+            <input type="hidden" id="ev-id">
+            <label>Event Name</label>
+            <input type="text" id="ev-name" required>
             
-            <!-- User Profile/Notifications -->
-            <div>
-                <button class="btn btn-sm btn-outline-warning me-2" id="notification-btn"><i class="bi bi-bell"></i></button>
-                <span class="text-light me-2">Hello, User Name!</span>
-                <img src="https://via.placeholder.com/30/ffc107/000000?text=U" alt="Profile" class="rounded-circle">
+            <div class="grid-2">
+                <div><label>Start</label><input type="date" id="ev-start" required></div>
+                <div><label>End</label><input type="date" id="ev-end" required></div>
             </div>
-        </header>
+            
+            <label>Color</label>
+            <input type="color" id="ev-color" value="#ffc107" style="height: 40px;">
 
-        <!-- Main Content Area -->
-        <main id="main-content">
-            <!-- Content will be loaded dynamically here -->
-            <h1 class="text-warning">Welcome to Apex Systems</h1>
-            <p>Please select a project from the sidebar dropdown to get started.</p>
-
-            <div class="row mt-4">
-                <div class="col-md-6">
-                    <div class="card p-3">
-                        <h5>Real-time Status</h5>
-                        <p id="socket-status" class="text-muted">Connecting...</p>
-                    </div>
-                </div>
+            <div class="flex-between mt-2">
+                <button type="button" id="btn-delete-event" class="btn btn-danger hidden" onclick="deleteEvent()">Delete</button>
+                <button type="submit" class="btn btn-primary">Save Event</button>
             </div>
-        </main>
-    </div>
-    <!-- END: Main Content Wrapper -->
-</div> 
-<!-- !!! IMPORTANT: app-wrapper CLOSES HERE !!! -->
-
-
-<!-- 2. MODALS (Must be Siblings to app-wrapper, not children) -->
-
-<!-- MODAL: Create Project (Admin Only) -->
-<div class="modal fade" id="createProjectModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark text-light border-warning">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title text-warning">Create New Project</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="create-project-form">
-                    <div class="mb-3">
-                        <label class="form-label">Project Name</label>
-                        <input type="text" class="form-control bg-secondary text-light border-0" id="cp-name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control bg-secondary text-light border-0" id="cp-desc" rows="2"></textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-6 mb-3">
-                            <label class="form-label">Start Date</label>
-                            <input type="date" class="form-control bg-secondary text-light border-0" id="cp-start" required>
-                        </div>
-                        <div class="col-6 mb-3">
-                            <label class="form-label">End Date</label>
-                            <input type="date" class="form-control bg-secondary text-light border-0" id="cp-end" required>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Create Project</button>
-                </form>
-            </div>
-        </div>
+        </form>
     </div>
 </div>
 
-<!-- MODAL: Create User (Admin Only) -->
-<div class="modal fade" id="createUserModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark text-light border-warning">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title text-warning">Add New User</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="create-user-form">
-                    <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input type="text" class="form-control bg-secondary text-light border-0" id="cu-username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control bg-secondary text-light border-0" id="cu-email" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control bg-secondary text-light border-0" id="cu-password" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Role</label>
-                        <select class="form-select bg-secondary text-light border-0" id="cu-role">
-                            <option value="2">Member</option>
-                            <option value="1">Admin</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Register User</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: Create Task -->
-<div class="modal fade" id="createTaskModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark text-light border-warning">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title text-warning">Add New Task</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="create-task-form">
-                    <div class="mb-3">
-                        <label class="form-label">Task Name</label>
-                        <input type="text" class="form-control bg-secondary text-light border-0" id="ct-name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control bg-secondary text-light border-0" id="ct-desc" rows="2"></textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-6 mb-3">
-                            <label class="form-label">Due Date</label>
-                            <input type="date" class="form-control bg-secondary text-light border-0" id="ct-due" required>
-                        </div>
-                        <div class="col-6 mb-3">
-                            <label class="form-label">Assign To</label>
-                            <select class="form-select bg-secondary text-light border-0" id="ct-assignee">
-                                <option value="">Unassigned</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Create Task</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Bootstrap JS Bundle -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Socket.io Client -->
 <script src="/socket.io/socket.io.js"></script>
-<!-- Application Logic -->
 <script src="/js/app.js"></script>
 </body>
 </html>

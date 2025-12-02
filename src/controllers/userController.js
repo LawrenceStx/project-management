@@ -112,3 +112,37 @@ exports.getMemberStats = (req, res) => {
         res.json(rows);
     });
 };
+
+// [SELF] Change Password
+exports.changePassword = async (req, res) => {
+    const userId = req.session.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'All fields are required.' });
+    }
+
+    try {
+        // 1. Get current password hash
+        db.get("SELECT password FROM users WHERE id = ?", [userId], async (err, row) => {
+            if (err || !row) return res.status(500).json({ error: 'User not found.' });
+
+            // 2. Verify Current Password
+            const match = await bcrypt.compare(currentPassword, row.password);
+            if (!match) {
+                return res.status(401).json({ error: 'Incorrect current password.' });
+            }
+
+            // 3. Hash New Password
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+            // 4. Update Database
+            db.run("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, userId], function(err) {
+                if (err) return res.status(500).json({ error: 'Failed to update password.' });
+                res.json({ message: 'Password updated successfully.' });
+            });
+        });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error.' });
+    }
+};

@@ -1,99 +1,146 @@
-/* public/css/style.css */
-
 :root {
-    /* Apex Systems Palette */
-    --apex-primary: #ffc107; /* Bright Yellow */
-    --apex-secondary: #212529; /* Dark Bootstrap Gray/Black */
-    --apex-background: #1a1a1a; /* True Black/Deep Dark Grey */
-    --apex-text-light: #f8f9fa; /* Light text on dark backgrounds */
-    --apex-text-dark: #212529; /* Dark text on light backgrounds */
-    --apex-sidebar-width: 280px;
+    --bg-body: #f4f6f8;
+    --bg-sidebar: #ffffff;
+    --bg-card: #ffffff;
+    --text-main: #333333;
+    --text-muted: #777777;
+    --primary: #ffc107; /* Yellow */
+    --danger: #dc3545;
+    --success: #198754;
+    --border: #e0e0e0;
+    --radius: 8px;
+    --sidebar-width: 250px;
+    --shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-    background-color: var(--apex-background);
-    color: var(--apex-text-light);
-    font-family: 'Arial', sans-serif;
-}
-
-/* --- Layout Structure --- */
-#app-wrapper {
+    font-family: 'Segoe UI', sans-serif;
+    background: var(--bg-body);
+    color: var(--text-main);
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
 }
 
-#sidebar {
-    width: var(--apex-sidebar-width);
-    background-color: var(--apex-secondary);
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
-    position: fixed;
-    height: 100%;
-    z-index: 1030; /* Above regular content */
-    padding-top: 20px;
+/* --- Sidebar --- */
+aside {
+    width: var(--sidebar-width);
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
 }
 
-#main-content-wrapper {
-    flex-grow: 1;
-    margin-left: var(--apex-sidebar-width); /* Push content away from fixed sidebar */
-}
-
-#main-header {
-    background-color: var(--apex-secondary);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 15px 25px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-#main-content {
-    padding: 25px;
-}
-
-/* --- Typography and Components --- */
-
-.apex-logo {
-    font-size: 1.8rem;
+.brand {
+    font-size: 1.5rem;
     font-weight: bold;
-    color: var(--apex-primary) !important;
-    padding: 0 15px 20px 15px;
+    color: var(--text-main);
+    text-decoration: none;
+    margin-bottom: 30px;
     display: block;
 }
+.brand span { color: var(--primary); }
 
-.apex-logo span {
-    color: var(--apex-text-light);
-    font-size: 1.2rem;
-    margin-left: 5px;
-}
-
-/* Sidebar Nav */
+.nav-item { list-style: none; margin-bottom: 5px; }
 .nav-link {
-    color: rgba(255, 255, 255, 0.7);
-    padding: 10px 25px;
-    transition: all 0.2s;
+    display: block;
+    padding: 10px 15px;
+    text-decoration: none;
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    transition: 0.2s;
 }
-
 .nav-link:hover, .nav-link.active {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: var(--apex-primary);
-    border-left: 3px solid var(--apex-primary);
+    background: #fff8e1; /* Light yellow */
+    color: #000;
+    font-weight: 600;
 }
 
-/* Override Bootstrap elements */
+/* --- Main Layout --- */
+#app-wrapper { display: flex; width: 100%; }
+#main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+header {
+    background: var(--bg-card);
+    padding: 15px 30px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+main {
+    padding: 30px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* --- Components --- */
 .card {
-    background-color: var(--apex-secondary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
 }
 
-.btn-primary {
-    background-color: var(--apex-primary);
-    border-color: var(--apex-primary);
-    color: var(--apex-text-dark); /* Ensure black text on yellow button */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.btn-primary { background: var(--primary); color: #000; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-outline { background: transparent; border: 1px solid var(--border); }
+
+/* --- INPUTS (White Backgrounds) --- */
+input, select, textarea {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #ffffff; /* Requirement #4 */
+    color: #333;
+    font-size: 1rem;
+}
+input:focus { border-color: var(--primary); outline: none; }
+
+/* --- Grid System (Replacements for Bootstrap Row/Col) --- */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+
+/* --- Custom Modals (No Bootstrap JS) --- */
+.modal-overlay {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+.modal-overlay.open { display: flex; }
+
+.modal-box {
+    background: #fff;
+    padding: 25px;
+    border-radius: var(--radius);
+    width: 400px;
+    max-width: 90%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
 }
 
-.btn-primary:hover {
-    background-color: #e0b43f;
-    border-color: #e0b43f;
-}
-
-#gantt-chart-wrapper {
-    overflow: auto;
-}
+/* --- Utilities --- */
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.text-center { text-align: center; }
+.hidden { display: none; }
+.mt-2 { margin-top: 10px; }
+.mb-2 { margin-bottom: 10px; }

@@ -1,39 +1,53 @@
 // public/js/app.js
 
+// --- Global Modal Helpers (Vanilla JS) ---
+window.openModal = (id) => {
+    const el = document.getElementById(id);
+    if(el) el.classList.add('open');
+};
+
+window.closeModal = (id) => {
+    const el = document.getElementById(id);
+    if(el) el.classList.remove('open');
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
     const socket = io();
     
     // Application State
     const state = {
-        user: null,         // Stores current user info
-        projects: [],       // List of available projects
-        currentProject: null // Currently selected project ID
+        user: null,
+        projects: [],
+        currentProject: null,
+        taskFilter: 'All',
+        taskSort: 'Date'
     };
 
     // DOM Elements
     const projectSelect = document.getElementById('global-project-selector');
     const mainContent = document.getElementById('main-content');
     const projectDisplay = document.getElementById('current-project-display');
+    const userDisplay = document.getElementById('user-display');
     const navLinks = document.querySelectorAll('.nav-link');
 
-    // --- 1. INITIALIZATION ---
+    // ==========================================
+    // 1. INITIALIZATION & AUTH
+    // ==========================================
 
-    // Check Auth Status & Load Initial Data
     try {
         const authRes = await fetch('/api/auth/status');
         const authData = await authRes.json();
 
         if (authData.authenticated) {
             state.user = authData.user;
-            console.log('Logged in as:', state.user.username);
+            userDisplay.textContent = `${state.user.username} (${state.user.role_id === 1 ? 'Admin' : 'Member'})`;
             
-            // Adjust sidebar based on role (Hide Admin links for members)
+            // Sidebar: Hide Admin links for standard members
             if(state.user.role_id !== 1) {
                 document.querySelectorAll('[data-page="projects"], [data-page="accounts"]').forEach(el => {
-                    el.closest('.nav-item').style.display = 'none';
+                    if(el.closest('.nav-item')) el.closest('.nav-item').style.display = 'none';
                 });
             }
-
             loadProjects();
         } else {
             window.location.href = '/login.html';
@@ -42,7 +56,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Auth check failed', e);
     }
 
-    // --- 2. PROJECT MANAGEMENT ---
+    // ==========================================
+    // 2. PROJECT MANAGEMENT
+    // ==========================================
 
     async function loadProjects() {
         try {
@@ -50,7 +66,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const projects = await res.json();
             state.projects = projects;
             
-            // Populate Dropdown
             projectSelect.innerHTML = '<option disabled selected>Select Project...</option>';
             
             projects.forEach(p => {
@@ -60,12 +75,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 projectSelect.appendChild(option);
             });
 
-            // Add "Create New" option for Admins
+            // Admin "Create New" option
             if (state.user.role_id === 1) {
                 const createOpt = document.createElement('option');
                 createOpt.value = 'NEW_PROJECT_TRIGGER';
                 createOpt.textContent = '+ Create New Project';
-                createOpt.style.color = '#ffc107';
                 createOpt.style.fontWeight = 'bold';
                 projectSelect.appendChild(createOpt);
             }
@@ -76,557 +90,339 @@ document.addEventListener('DOMContentLoaded', async () => {
                 projectSelect.value = savedProject;
                 handleProjectChange(savedProject);
             } else {
-                // If no project selected, ensure Dashboard updates with the project count
-                // Check if we are currently ON the dashboard page
-                if (document.querySelector('.nav-link[data-page="dashboard"]').classList.contains('active')) {
+                // Default to Dashboard if no project selected
+                if (document.querySelector('.nav-link.active') && document.querySelector('.nav-link.active').dataset.page === 'dashboard') {
                     renderDashboard();
                 }
             }
-
-        } catch (e) {
-            console.error('Failed to load projects', e);
-        }
+        } catch (e) { console.error(e); }
     }
 
     projectSelect.addEventListener('change', (e) => {
         const value = e.target.value;
         if (value === 'NEW_PROJECT_TRIGGER') {
-            const modal = new bootstrap.Modal(document.getElementById('createProjectModal'));
-            modal.show();
-            // Reset dropdown
+            openModal('createProjectModal'); 
             projectSelect.value = state.currentProject || '';
         } else {
             handleProjectChange(value);
         }
     });
 
-    function handleProjectChange(projectId) {
+    window.handleProjectChange = function(projectId) {
         state.currentProject = projectId;
         localStorage.setItem('currentProjectId', projectId);
         
         const project = state.projects.find(p => p.id == projectId);
         if (project) {
             projectDisplay.textContent = `Project: ${project.name}`;
-            projectDisplay.classList.add('text-warning');
-            projectDisplay.classList.remove('text-white-50');
-            
-            // Reload current view with new project context
             const activePage = document.querySelector('.nav-link.active').dataset.page;
             loadPage(activePage);
         }
-    }
+    };
 
-    // Handle Create Project Form
-    document.getElementById('create-project-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const data = {
-            name: document.getElementById('cp-name').value,
-            description: document.getElementById('cp-desc').value,
-            start_date: document.getElementById('cp-start').value,
-            end_date: document.getElementById('cp-end').value
-        };
-
-        const res = await fetch('/api/projects', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-
-        if (res.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('createProjectModal')).hide();
-            loadProjects(); // Reload list
-            alert('Project created!');
-        }
-    });
-
-
-    // --- 3. NAVIGATION & PAGE ROUTING ---
+    // ==========================================
+    // 3. NAVIGATION ROUTER
+    // ==========================================
 
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
-            // Update UI Active State
             navLinks.forEach(n => n.classList.remove('active'));
             const targetLink = e.target.closest('.nav-link');
             targetLink.classList.add('active');
-
-            const page = targetLink.dataset.page;
-            loadPage(page);
+            loadPage(targetLink.dataset.page);
         });
     });
 
     function loadPage(pageName) {
-        // Clear Content
         mainContent.innerHTML = '';
-
         switch(pageName) {
-            case 'dashboard':
-                renderDashboard();
-                break;
-            case 'accounts':
-                renderAccountsPage();
-                break;
-            case 'projects':
-                renderProjectsList();
-                break;
-            case 'tasks':
+            case 'dashboard': renderDashboard(); break;
+            case 'accounts': renderAccountsPage(); break;
+            case 'projects': renderProjectsList(); break;
+            case 'tasks': 
                 if (!state.currentProject) { showSelectProjectAlert(); return; }
-                renderTasksPage();
+                renderTasksPage(); 
                 break;
-            // --- NEW CASES ---
             case 'gantt':
                 if (!state.currentProject) { showSelectProjectAlert(); return; }
-                renderGanttPage();
+                renderGanttPage(); 
                 break;
             case 'members':
                 if (!state.currentProject) { showSelectProjectAlert(); return; }
                 renderMembersPage();
                 break;
-            // -----------------
+            case 'settings': renderSettingsPage(); break;
+            case 'announcements': renderAnnouncementsPage(); break;
             case 'logout':
                 fetch('/api/auth/logout', {method: 'POST'}).then(() => window.location.href = '/login.html');
                 break;
-            default:
-                mainContent.innerHTML = `<h3>Page not found</h3>`;
+            default: mainContent.innerHTML = `<h3>Page not found</h3>`;
         }
     }
     
     function showSelectProjectAlert() {
-        mainContent.innerHTML = `<div class="alert alert-warning">Please select a project from the sidebar to view this page.</div>`;
+        mainContent.innerHTML = `<div style="padding: 20px; background: #fff3cd; color: #856404; border-radius: 8px;">Please select a project from the sidebar to view this page.</div>`;
     }
 
+    // ==========================================
+    // 4. GANTT CHART (EVENTS MODULE)
+    // ==========================================
+    
     async function renderGanttPage() {
-        const projectId = state.currentProject;
+        const isAdmin = state.user.role_id === 1;
+
         mainContent.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Project Timeline</h2>
+            <div class="flex-between mb-2">
+                <h2>Project Roadmap</h2>
+                ${isAdmin ? `<button class="btn btn-primary" onclick="openNewEventModal()">+ Add Event</button>` : ''}
             </div>
-            <div class="card p-3 border-secondary bg-dark" style="overflow-x: auto;">
-                <div id="gantt-chart-wrapper" style="min-width: 800px; min-height: 400px; position: relative;">
-                    <div class="text-center text-muted mt-5">Loading Timeline...</div>
-                </div>
+            <div class="card" style="overflow-x: auto; position: relative; min-height: 400px;" id="gantt-container">
+                <div class="text-center mt-2">Loading Timeline...</div>
             </div>
         `;
-        try {
-            const [tasksRes, projectRes] = await Promise.all([
-                fetch(`/api/projects/${projectId}/tasks`),
-                fetch('/api/projects') 
-            ]);
-            const tasks = await tasksRes.json();
-            const projects = await projectRes.json();
-            const currentProject = projects.find(p => p.id == projectId);
 
-            if (!tasks.length || !currentProject) {
-                document.getElementById('gantt-chart-wrapper').innerHTML = '<div class="alert alert-info">No data available.</div>';
-                return;
-            }
-            drawGanttChart(currentProject, tasks);
+        try {
+            const res = await fetch(`/api/projects/${state.currentProject}/events`);
+            const events = await res.json();
+            drawGanttEvents(events);
         } catch (e) { console.error(e); }
     }
 
-    function drawGanttChart(project, tasks) {
-        const wrapper = document.getElementById('gantt-chart-wrapper');
-        wrapper.innerHTML = '';
+    function drawGanttEvents(events) {
+        const container = document.getElementById('gantt-container');
+        container.innerHTML = '';
         
-        // Timeline Calculation
-        const start = new Date(project.start_date);
-        const end = new Date(project.end_date);
-        const timelineStart = new Date(start); timelineStart.setDate(start.getDate() - 2);
-        const timelineEnd = new Date(end); timelineEnd.setDate(end.getDate() + 5);
-        const totalDays = Math.ceil((timelineEnd - timelineStart) / (1000 * 60 * 60 * 24));
-        const dayWidth = 40; 
-        
-        // Header
-        const headerRow = document.createElement('div');
-        headerRow.style.cssText = `display: flex; height: 40px; border-bottom: 1px solid #555; margin-bottom: 10px;`;
-        const spacer = document.createElement('div');
-        spacer.style.cssText = "width: 200px; flex-shrink: 0; border-right: 1px solid #555; padding: 10px; font-weight: bold; color: #ffc107;";
-        spacer.textContent = "Task Name";
-        headerRow.appendChild(spacer);
-
-        for(let i=0; i<totalDays; i++) {
-            const d = new Date(timelineStart);
-            d.setDate(timelineStart.getDate() + i);
-            const cell = document.createElement('div');
-            cell.style.cssText = `width: ${dayWidth}px; flex-shrink: 0; border-right: 1px solid #333; font-size: 10px; text-align: center; color: #888; padding-top: 5px;`;
-            cell.textContent = `${d.getDate()}/${d.getMonth()+1}`;
-            headerRow.appendChild(cell);
+        if(events.length === 0) { 
+            container.innerHTML = '<div class="text-center" style="padding:50px; color: #777;">No events scheduled.</div>'; 
+            return; 
         }
-        wrapper.appendChild(headerRow);
 
-        // Rows
-        tasks.forEach(task => {
-            if(!task.due_date) return;
+        // Calculate Range
+        const dates = events.map(e => [new Date(e.start_date), new Date(e.end_date)]).flat();
+        let minDate = new Date(Math.min.apply(null, dates));
+        let maxDate = new Date(Math.max.apply(null, dates));
+        
+        // Pad dates
+        minDate.setDate(minDate.getDate() - 5);
+        maxDate.setDate(maxDate.getDate() + 10);
+        
+        const totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
+        const pxPerDay = 40; 
+        
+        // Draw Header
+        const header = document.createElement('div');
+        header.style.display = 'flex';
+        header.style.borderBottom = '1px solid #eee';
+        header.style.marginBottom = '20px';
+        
+        for(let i=0; i <= totalDays; i++) {
+            const d = new Date(minDate);
+            d.setDate(d.getDate() + i);
+            const cell = document.createElement('div');
+            cell.style.minWidth = `${pxPerDay}px`;
+            cell.style.fontSize = '10px';
+            cell.style.color = '#777';
+            cell.style.borderRight = '1px solid #f0f0f0';
+            cell.innerText = `${d.getDate()}/${d.getMonth()+1}`;
+            header.appendChild(cell);
+        }
+        container.appendChild(header);
+
+        // Draw Events
+        events.forEach(ev => {
             const row = document.createElement('div');
-            row.style.cssText = `display: flex; height: 45px; border-bottom: 1px solid #333; align-items: center; position: relative;`;
-            
-            const nameCol = document.createElement('div');
-            nameCol.style.cssText = "width: 200px; flex-shrink: 0; border-right: 1px solid #555; padding: 0 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #fff;";
-            nameCol.textContent = task.name;
-            row.appendChild(nameCol);
+            row.style.position = 'relative';
+            row.style.height = '40px';
+            row.style.marginBottom = '10px';
 
-            const dueDate = new Date(task.due_date);
-            const startDate = new Date(task.due_date); startDate.setDate(dueDate.getDate() - 3); 
-            const daysFromStart = Math.ceil((startDate - timelineStart) / (1000 * 60 * 60 * 24));
-            const duration = Math.max(1, Math.ceil((dueDate - startDate) / (1000 * 60 * 60 * 24)));
-            
-            const color = task.status === 'Done' ? '#198754' : (task.status === 'In Progress' ? '#ffc107' : '#6c757d');
-            const textColor = task.status === 'In Progress' ? '#000' : '#fff';
+            const start = new Date(ev.start_date);
+            const end = new Date(ev.end_date);
+            const duration = (end - start) / (1000 * 60 * 60 * 24) + 1;
+            const offset = (start - minDate) / (1000 * 60 * 60 * 24);
 
             const bar = document.createElement('div');
-            bar.style.cssText = `position: absolute; left: ${200 + (daysFromStart * dayWidth)}px; width: ${duration * dayWidth}px; height: 25px; background: ${color}; color: ${textColor}; border-radius: 4px; font-size: 11px; display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.5);`;
-            bar.textContent = task.status;
-            bar.title = `Due: ${task.due_date}`;
-            row.appendChild(bar);
-            wrapper.appendChild(row);
-        });
-    }
-
-    // --- RENDER MEMBERS PAGE ---
-    async function renderMembersPage() {
-        const projectId = state.currentProject;
-        mainContent.innerHTML = `
-            <h2>Team Performance</h2>
-            <div class="row" id="members-container"><div class="col-12 text-center mt-5">Loading...</div></div>
-        `;
-        try {
-            const res = await fetch(`/api/projects/${projectId}/members/stats`);
-            const members = await res.json();
-            const container = document.getElementById('members-container');
-            container.innerHTML = '';
-
-            members.forEach(m => {
-                const total = m.total_tasks || 0;
-                const done = m.completed_tasks || 0;
-                const rate = total === 0 ? 0 : Math.round((done / total) * 100);
-                let statusColor = 'text-muted';
-                let statusText = 'No Tasks';
-                let border = 'border-secondary';
-
-                if (total > 0) {
-                    if (rate >= 80) { statusText = 'Excellent'; statusColor = 'text-success'; border = 'border-success'; }
-                    else if (rate >= 50) { statusText = 'Good'; statusColor = 'text-warning'; border = 'border-warning'; }
-                    else { statusText = 'Needs Improvement'; statusColor = 'text-danger'; border = 'border-danger'; }
-                }
-
-                container.innerHTML += `
-                <div class="col-md-4 mb-3">
-                    <div class="card h-100 ${border} border-top border-3 bg-dark">
-                        <div class="card-body text-center">
-                            <h5 class="card-title text-light">${m.username}</h5>
-                            <span class="badge bg-secondary mb-3">${m.role_in_project || 'Member'}</span>
-                            <div class="progress mb-2" style="height: 6px;">
-                                <div class="progress-bar bg-warning" style="width: ${rate}%"></div>
-                            </div>
-                            <p class="${statusColor} fw-bold">${statusText} (${rate}%)</p>
-                            <small class="text-muted">${done} / ${total} Tasks Completed</small>
-                        </div>
-                    </div>
-                </div>`;
-            });
-        } catch (e) { console.error(e); }
-    }
-
-    // --- 4. PAGE RENDERERS ---
-
-    function renderDashboard() {
-        // If state.projects is not yet loaded, show 0
-        const projectCount = state.projects ? state.projects.length : 0;
-        const roleName = state.user.role_id === 1 ? 'Administrator' : 'Team Member';
-
-        mainContent.innerHTML = `
-            <h2 class="mb-4">Dashboard</h2>
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="card p-4 text-center border-warning">
-                        <h1 class="text-warning display-4">${projectCount}</h1>
-                        <p class="text-muted">Active Projects</p>
-                    </div>
-                </div>
-                <div class="col-md-8">
-                    <div class="card p-4">
-                        <h5 class="text-white">Welcome, <span class="text-warning">${state.user.username}</span></h5>
-                        <p class="text-white-50">Role: ${roleName}</p>
-                        <hr class="border-secondary">
-                        <p class="text-muted small">
-                            Select a project from the sidebar dropdown to manage tasks, view timelines, and collaborate with your team.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    async function renderAccountsPage() {
-        // Only fetch if admin
-        if (state.user.role_id !== 1) return;
-
-        mainContent.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2>Manage Accounts</h2>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
-                    <i class="bi bi-person-plus"></i> Add User
-                </button>
-            </div>
-            <div class="card p-0 overflow-hidden">
-                <table class="table table-dark table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="users-table-body"><tr><td colspan="6">Loading...</td></tr></tbody>
-                </table>
-            </div>
-        `;
-
-        // Fetch Users
-        const res = await fetch('/api/admin/users');
-        const users = await res.json();
-        
-        const tbody = document.getElementById('users-table-body');
-        tbody.innerHTML = '';
-        
-        users.forEach(u => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${u.id}</td>
-                <td>${u.username}</td>
-                <td>${u.email}</td>
-                <td><span class="badge ${u.role === 'Admin' ? 'text-bg-warning' : 'text-bg-secondary'}">${u.role}</span></td>
-                <td>${u.is_active ? '<span class="text-success">Active</span>' : '<span class="text-danger">Inactive</span>'}</td>
-                <td>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id})"><i class="bi bi-trash"></i></button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        // Initialize User Creation Form logic
-        const form = document.getElementById('create-user-form');
-        // Remove old listeners to prevent duplicates (simple hack for SPA)
-        const newForm = form.cloneNode(true);
-        form.parentNode.replaceChild(newForm, form);
-        
-        newForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const payload = {
-                username: document.getElementById('cu-username').value,
-                email: document.getElementById('cu-email').value,
-                password: document.getElementById('cu-password').value,
-                role_id: document.getElementById('cu-role').value
-            };
+            bar.innerText = ev.name;
+            bar.style.position = 'absolute';
+            bar.style.left = `${offset * pxPerDay}px`;
+            bar.style.width = `${duration * pxPerDay}px`;
+            bar.style.height = '30px';
+            bar.style.backgroundColor = ev.color;
+            bar.style.borderRadius = '4px';
+            bar.style.padding = '5px 10px';
+            bar.style.fontSize = '12px';
+            bar.style.color = '#000'; 
+            bar.style.whiteSpace = 'nowrap';
+            bar.style.overflow = 'hidden';
+            bar.style.cursor = 'pointer';
+            bar.style.boxShadow = '2px 2px 5px rgba(0,0,0,0.1)';
             
-            await fetch('/api/admin/users', {
-                method: 'POST',
+            // Interaction: Click to Edit
+            bar.onclick = () => openEditEventModal(ev);
+
+            row.appendChild(bar);
+            container.appendChild(row);
+        });
+    }
+
+    // Gantt Modals Exposed to Window
+    window.openNewEventModal = () => {
+        document.getElementById('event-form').reset();
+        document.getElementById('ev-id').value = ''; 
+        const delBtn = document.getElementById('btn-delete-event');
+        if(delBtn) delBtn.classList.add('hidden');
+        openModal('eventModal');
+    };
+
+    window.openEditEventModal = (ev) => {
+        document.getElementById('ev-id').value = ev.id;
+        document.getElementById('ev-name').value = ev.name;
+        document.getElementById('ev-start').value = ev.start_date;
+        document.getElementById('ev-end').value = ev.end_date;
+        document.getElementById('ev-color').value = ev.color;
+        
+        const delBtn = document.getElementById('btn-delete-event');
+        if(state.user.role_id === 1) {
+            if(delBtn) delBtn.classList.remove('hidden');
+        } else {
+            if(delBtn) delBtn.classList.add('hidden');
+        }
+        openModal('eventModal');
+    };
+
+    // Gantt Form Submit
+    const eventForm = document.getElementById('event-form');
+    if(eventForm) {
+        eventForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('ev-id').value;
+            const payload = {
+                project_id: state.currentProject,
+                name: document.getElementById('ev-name').value,
+                start_date: document.getElementById('ev-start').value,
+                end_date: document.getElementById('ev-end').value,
+                color: document.getElementById('ev-color').value
+            };
+    
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `/api/events/${id}` : '/api/events';
+    
+            await fetch(url, {
+                method: method,
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(payload)
             });
-            
-            bootstrap.Modal.getInstance(document.getElementById('createUserModal')).hide();
-            renderAccountsPage(); // Refresh table
+    
+            closeModal('eventModal');
+            renderGanttPage();
         });
     }
 
-    // Global filter state (add this near the top of app.js with other state)
-    state.taskFilter = 'All'; 
-    state.taskSort = 'Date';
+    window.deleteEvent = async () => {
+        const id = document.getElementById('ev-id').value;
+        if(confirm("Delete this event?")) {
+            await fetch(`/api/events/${id}`, { method: 'DELETE' });
+            closeModal('eventModal');
+            renderGanttPage();
+        }
+    };
 
+
+    // ==========================================
+    // 5. TASKS PAGE (Admin Status Only)
+    // ==========================================
+    
     async function renderTasksPage() {
         const projectId = state.currentProject;
         
-        // 1. Header with Filter & Sort Controls
         mainContent.innerHTML = `
-            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+            <div class="flex-between mb-2">
                 <h2>Project Tasks</h2>
-                
-                <div class="d-flex gap-2">
-                    <!-- Filter Dropdown -->
-                    <select id="task-filter" class="form-select bg-dark text-light border-secondary" style="width: auto;">
-                        <option value="All" ${state.taskFilter === 'All' ? 'selected' : ''}>All Status</option>
-                        <option value="Todo" ${state.taskFilter === 'Todo' ? 'selected' : ''}>Todo</option>
-                        <option value="In Progress" ${state.taskFilter === 'In Progress' ? 'selected' : ''}>In Progress</option>
-                        <option value="Done" ${state.taskFilter === 'Done' ? 'selected' : ''}>Done</option>
+                <div style="display:flex; gap:10px;">
+                     <select id="task-filter">
+                        <option value="All">All Status</option>
+                        <option value="Todo">Todo</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Done">Done</option>
                     </select>
-
-                    <!-- Sort Dropdown -->
-                    <select id="task-sort" class="form-select bg-dark text-light border-secondary" style="width: auto;">
-                        <option value="Date" ${state.taskSort === 'Date' ? 'selected' : ''}>Sort by Date</option>
-                        <option value="Name" ${state.taskSort === 'Name' ? 'selected' : ''}>Sort by Name</option>
-                    </select>
-
-                    <button class="btn btn-primary" onclick="openTaskModal()">
-                        <i class="bi bi-plus-lg"></i> New Task
-                    </button>
+                    <button class="btn btn-primary" onclick="openCreateTaskModal()">+ New Task</button>
                 </div>
             </div>
             
-            <div class="row" id="task-container">
-                <div class="col-12 text-center text-muted">Loading tasks...</div>
+            <div id="task-container" class="grid-3">
+                <div class="text-center" style="grid-column: 1/-1">Loading tasks...</div>
             </div>
         `;
 
-        // Listeners for Filter/Sort
         document.getElementById('task-filter').addEventListener('change', (e) => {
             state.taskFilter = e.target.value;
-            renderTasksPage(); // Re-render
-        });
-        document.getElementById('task-sort').addEventListener('change', (e) => {
-            state.taskSort = e.target.value;
-            renderTasksPage(); // Re-render
+            renderTasksPage();
         });
 
         try {
             const res = await fetch(`/api/projects/${projectId}/tasks`);
             let tasks = await res.json();
-            
             const container = document.getElementById('task-container');
             container.innerHTML = '';
 
-            // 2. Client-Side Filtering
             if (state.taskFilter !== 'All') {
                 tasks = tasks.filter(t => t.status === state.taskFilter);
             }
 
-            // 3. Client-Side Sorting
-            tasks.sort((a, b) => {
-                if (state.taskSort === 'Date') {
-                    return new Date(a.due_date) - new Date(b.due_date);
-                } else {
-                    return a.name.localeCompare(b.name);
-                }
-            });
-
             if (tasks.length === 0) {
-                container.innerHTML = '<div class="col-12"><div class="alert alert-secondary">No tasks found matching your criteria.</div></div>';
+                container.innerHTML = '<div style="grid-column: 1/-1; padding: 20px; background: #eee; border-radius: 8px;">No tasks found.</div>';
                 return;
             }
 
-            // 4. Render Cards with DELETE button
             tasks.forEach(task => {
-                const badgeClass = task.status === 'Done' ? 'bg-success' : (task.status === 'In Progress' ? 'bg-warning text-dark' : 'bg-secondary');
+                const isAdmin = state.user.role_id === 1;
+                // REQUIREMENT: Admin only can change status
+                const disabledAttr = isAdmin ? '' : 'disabled';
                 
                 const card = document.createElement('div');
-                card.className = 'col-md-4 mb-3 fade-in'; // Added animation class logic if you have CSS for it
+                card.className = 'card';
+                card.style.borderLeft = `4px solid ${task.status === 'Done' ? 'var(--success)' : 'var(--primary)'}`;
+                
                 card.innerHTML = `
-                    <div class="card h-100 border-start border-4 ${task.status === 'Done' ? 'border-success' : 'border-warning'}">
-                        <div class="card-body position-relative">
-                            
-                            <!-- DELETE BUTTON (Top Right) -->
-                            <button class="btn btn-sm btn-link text-danger position-absolute top-0 end-0 m-2" 
-                                onclick="deleteTask(${task.id})" title="Delete Task">
-                                <i class="bi bi-trash-fill"></i>
-                            </button>
-
-                            <div class="d-flex justify-content-between mb-2 me-4">
-                                <span class="badge ${badgeClass}">${task.status}</span>
-                            </div>
-                            
-                            <h5 class="card-title text-light">${task.name}</h5>
-                            <small class="text-muted d-block mb-2"><i class="bi bi-calendar"></i> ${task.due_date || 'No Date'}</small>
-                            <p class="card-text text-white-50 small">${task.description || ''}</p>
-                            
-                            <div class="d-flex justify-content-between align-items-end mt-3 border-top border-secondary pt-2">
-                                <small class="text-warning text-truncate" style="max-width: 120px;">
-                                    <i class="bi bi-person-circle"></i> ${task.assigned_to_name || 'Unassigned'}
-                                </small>
-                                <select class="form-select form-select-sm bg-dark text-light border-secondary w-auto" onchange="updateTaskStatus(${task.id}, this.value)">
-                                    <option value="Todo" ${task.status === 'Todo' ? 'selected' : ''}>Todo</option>
-                                    <option value="In Progress" ${task.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
-                                    <option value="Done" ${task.status === 'Done' ? 'selected' : ''}>Done</option>
-                                </select>
-                            </div>
-                        </div>
+                    <div class="flex-between">
+                        <strong>${task.status}</strong>
+                        ${isAdmin ? `<button class="btn btn-outline" style="color:red; border:none;" onclick="deleteTask(${task.id})">🗑️</button>` : ''}
+                    </div>
+                    <h4 class="mt-2">${task.name}</h4>
+                    <p class="mb-2" style="font-size:0.9rem; color:var(--text-muted)">${task.description || ''}</p>
+                    <div style="font-size:0.8rem; margin-bottom:10px;">📅 ${task.due_date || 'N/A'}</div>
+                    
+                    <div class="flex-between" style="border-top:1px solid #eee; padding-top:10px; margin-top:10px;">
+                         <span style="font-size:0.8rem;">👤 ${task.assigned_to_name || 'Unassigned'}</span>
+                         
+                         <select style="width:auto; margin:0; padding:5px;" ${disabledAttr} onchange="updateTaskStatus(${task.id}, this.value)">
+                            <option value="Todo" ${task.status === 'Todo' ? 'selected' : ''}>Todo</option>
+                            <option value="In Progress" ${task.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                            <option value="Done" ${task.status === 'Done' ? 'selected' : ''}>Done</option>
+                        </select>
                     </div>
                 `;
                 container.appendChild(card);
             });
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
     }
 
-    // Add this Helper Function to app.js
-    window.deleteTask = async (id) => {
-        if(!confirm("Are you sure you want to permanently delete this task?")) return;
-        
-        try {
-            const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
-            if (!res.ok) alert("Failed to delete task");
-            // Socket will handle the UI refresh, or we can force it:
-            // renderTasksPage();
-        } catch(e) {
-            console.error(e);
-        }
-    };
-
-    // --- RENDER PROJECTS LIST (Admin View) ---
-    async function renderProjectsList() {
-        if (state.user.role_id !== 1) return;
-
-        mainContent.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2>All Projects</h2>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProjectModal">
-                    <i class="bi bi-folder-plus"></i> New Project
-                </button>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-dark table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th>ID</th><th>Project Name</th><th>Status</th><th>Start Date</th><th>End Date</th><th>Creator</th><th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="projects-table-body"><tr><td colspan="7">Loading...</td></tr></tbody>
-                </table>
-            </div>
-        `;
-
-        const res = await fetch('/api/projects');
-        const projects = await res.json();
-        
-        const tbody = document.getElementById('projects-table-body');
-        tbody.innerHTML = '';
-
-        if (projects.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No projects found.</td></tr>';
-            return;
-        }
-        
-        projects.forEach(p => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${p.id}</td>
-                <td class="fw-bold text-warning">${p.name}</td>
-                <td><span class="badge ${p.status === 'Completed' ? 'bg-success' : 'bg-secondary'}">${p.status}</span></td>
-                <td>${p.start_date}</td>
-                <td>${p.end_date}</td>
-                <td>${p.created_by_name || 'System'}</td>
-                <td>
-                    <button class="btn btn-sm btn-outline-info" onclick="handleProjectChange(${p.id})">Select</button>
-                    <!-- Edit/Delete buttons could go here -->
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    window.openTaskModal = async () => {
-        // Fetch project members to populate the dropdown
-        // Note: For simplicity, we are fetching all users. 
-        // Ideally, create an endpoint /api/projects/:id/members
-        const res = await fetch('/api/admin/users'); 
+    // Helper to populate user list in Modal
+    window.openCreateTaskModal = async () => {
+        // Fetch all users to populate assignee list
+        const res = await fetch('/api/admin/users');
         const users = await res.json();
-        
         const select = document.getElementById('ct-assignee');
-        select.innerHTML = '<option value="">Unassigned</option>';
-        users.forEach(u => {
-            select.innerHTML += `<option value="${u.id}">${u.username}</option>`;
-        });
-
-        const modal = new bootstrap.Modal(document.getElementById('createTaskModal'));
-        modal.show();
+        if(select) {
+            select.innerHTML = '<option value="">Unassigned</option>';
+            users.forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u.id;
+                opt.textContent = u.username;
+                select.appendChild(opt);
+            });
+        }
+        openModal('createTaskModal');
     };
 
     window.updateTaskStatus = async (taskId, newStatus) => {
@@ -635,52 +431,414 @@ document.addEventListener('DOMContentLoaded', async () => {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ status: newStatus })
         });
-        // UI update handled by socket
+        // Socket update handles UI
     };
 
-    // Handle Task Creation
-    document.getElementById('create-task-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const payload = {
-            project_id: state.currentProject,
-            name: document.getElementById('ct-name').value,
-            description: document.getElementById('ct-desc').value,
-            due_date: document.getElementById('ct-due').value,
-            assigned_to_id: document.getElementById('ct-assignee').value || null
-        };
+    window.deleteTask = async (id) => {
+        if(!confirm("Delete this task?")) return;
+        await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+    };
 
-        const res = await fetch('/api/tasks', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
+    // ==========================================
+    // 6. MEMBERS & OTHER PAGES
+    // ==========================================
+
+    async function renderMembersPage() {
+        const projectId = state.currentProject;
+        const isAdmin = state.user.role_id === 1;
+
+        mainContent.innerHTML = `
+            <div class="flex-between mb-2">
+                <h2>Team</h2>
+                ${isAdmin ? `<button class="btn btn-primary" onclick="openManageMembersModal()">Manage Team</button>` : ''}
+            </div>
+            <div id="members-container" class="grid-3">Loading...</div>
+        `;
+
+        const res = await fetch(`/api/projects/${projectId}/members/stats`);
+        const members = await res.json();
+        const container = document.getElementById('members-container');
+        container.innerHTML = '';
+
+        if(members.length === 0) { container.innerHTML = 'No members assigned.'; return; }
+
+        members.forEach(m => {
+            const total = m.total_tasks || 0;
+            const done = m.completed_tasks || 0;
+            const rate = total === 0 ? 0 : Math.round((done / total) * 100);
+
+            const card = document.createElement('div');
+            card.className = 'card text-center';
+            card.innerHTML = `
+                <img src="https://ui-avatars.com/api/?name=${m.username}&background=random" style="border-radius:50%; width:50px; margin-bottom:10px;">
+                <h3>${m.username}</h3>
+                <span style="background:#eee; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${m.role_in_project || 'Member'}</span>
+                <div style="margin-top:15px; background:#eee; height:6px; border-radius:3px; overflow:hidden;">
+                    <div style="width:${rate}%; background:var(--primary); height:100%;"></div>
+                </div>
+                <div class="flex-between mt-2" style="font-size:0.8rem;">
+                    <span>Success Rate</span>
+                    <strong>${rate}%</strong>
+                </div>
+            `;
+            container.appendChild(card);
         });
+    }
 
-        if(res.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('createTaskModal')).hide();
-            document.getElementById('create-task-form').reset();
+    async function renderAnnouncementsPage() {
+        const isAdmin = state.user.role_id === 1;
+
+        mainContent.innerHTML = `
+            <div class="flex-between mb-2">
+                <h2>Announcements</h2>
+                ${isAdmin ? `<button class="btn btn-primary" onclick="document.getElementById('announce-form-box').classList.toggle('hidden')">Post New</button>` : ''}
+            </div>
+
+            <div id="announce-form-box" class="card hidden mb-2">
+                <form id="post-announcement-form">
+                    <label>Title</label>
+                    <input type="text" id="ann-title" required>
+                    <label>Message</label>
+                    <textarea id="ann-message" required></textarea>
+                    <button type="submit" class="btn btn-primary mt-2">Broadcast</button>
+                </form>
+            </div>
+
+            <div id="announcement-feed" style="display:flex; flex-direction:column; gap:15px;">Loading...</div>
+        `;
+
+        if(isAdmin) {
+            // Attach listener dynamically
+            setTimeout(() => {
+                const form = document.getElementById('post-announcement-form');
+                if(form) form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await fetch('/api/announcements', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            title: document.getElementById('ann-title').value,
+                            message: document.getElementById('ann-message').value
+                        })
+                    });
+                    e.target.reset();
+                    document.getElementById('announce-form-box').classList.add('hidden');
+                });
+            }, 0);
         }
+
+        const res = await fetch('/api/announcements');
+        const data = await res.json();
+        const feed = document.getElementById('announcement-feed');
+        feed.innerHTML = '';
+        if(data.length === 0) feed.innerHTML = 'No announcements.';
+        
+        data.forEach(item => renderAnnouncementItem(item, isAdmin));
+    }
+
+    function renderAnnouncementItem(item, isAdmin) {
+        const feed = document.getElementById('announcement-feed');
+        if (!feed) return; 
+
+        // Remove "No announcements" text if present
+        if (feed.innerText === 'No announcements.') feed.innerHTML = '';
+
+        const el = document.createElement('div');
+        el.className = 'card fade-in';
+        el.id = `ann-${item.id}`; // ID for DOM removal
+        el.style.borderLeft = '4px solid var(--primary)';
+        
+        el.innerHTML = `
+            <div class="flex-between">
+                <h3>${item.title}</h3>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <small>${new Date(item.created_at).toLocaleDateString()}</small>
+                    ${isAdmin ? `<button class="btn btn-danger" style="padding:2px 8px; font-size:0.8rem;" onclick="deleteAnnouncement(${item.id})">X</button>` : ''}
+                </div>
+            </div>
+            <p class="mt-2">${item.message}</p>
+            <div class="mt-2" style="font-size:0.8rem; color:#777;">Posted by ${item.author}</div>
+        `;
+        // Prepend so newest is top
+        feed.prepend(el);
+    }
+
+    window.deleteAnnouncement = async (id) => {
+        if(!confirm("Remove this announcement?")) return;
+        await fetch(`/api/announcements/${id}`, { method: 'DELETE' });
+        // UI removal handled by socket below
+    };
+
+    // Socket Listener for Deletion
+    socket.on('announcement:delete', (data) => {
+        const el = document.getElementById(`ann-${data.id}`);
+        if (el) el.remove();
+        
+        // If empty, show message
+        const feed = document.getElementById('announcement-feed');
+        if (feed && feed.children.length === 0) feed.innerHTML = 'No announcements.';
     });
 
-    // --- SOCKET UPDATES ---
+    // Update the 'new' listener to use the helper too
+    socket.on('announcement:new', (data) => {
+         if (document.querySelector('.nav-link[data-page="announcements"]').classList.contains('active')) {
+             // We can determine if user is admin from state
+             const isAdmin = state.user && state.user.role_id === 1;
+             renderAnnouncementItem(data, isAdmin);
+         } else {
+             // Optional Notification
+         }
+    });
+
+    async function renderAccountsPage() {
+        if (state.user.role_id !== 1) return;
+        mainContent.innerHTML = `
+            <div class="flex-between mb-2">
+                <h2>Accounts</h2>
+                <button class="btn btn-primary" onclick="openModal('createUserModal')">Add User</button>
+            </div>
+            <div class="card" style="padding:0; overflow:hidden;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead style="background:#eee;">
+                        <tr style="text-align:left;">
+                            <th style="padding:10px;">User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody"></tbody>
+                </table>
+            </div>
+        `;
+        
+        const res = await fetch('/api/admin/users');
+        const users = await res.json();
+        const tbody = document.getElementById('users-tbody');
+        
+        users.forEach(u => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #eee';
+            tr.innerHTML = `
+                <td style="padding:10px;">${u.username}</td>
+                <td>${u.email}</td>
+                <td>${u.role}</td>
+                <td><button class="btn btn-danger" style="padding:4px 8px; font-size:0.8rem;" onclick="deleteUser(${u.id})">Delete</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderDashboard() {
+        const projectCount = state.projects ? state.projects.length : 0;
+        mainContent.innerHTML = `
+            <h2>Dashboard</h2>
+            <div class="grid-3 mt-2">
+                <div class="card" style="background:#333; color:#fff;">
+                    <h1>${projectCount}</h1>
+                    <div>Active Projects</div>
+                </div>
+                <div class="card">
+                    <h3>Welcome, ${state.user.username}</h3>
+                    <p>Select a project from the sidebar to begin.</p>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderSettingsPage() {
+        mainContent.innerHTML = `
+            <h2>Settings</h2>
+            <div class="card mt-2" style="max-width:500px;">
+                <h3>Change Password</h3>
+                <form id="pw-form">
+                    <input type="password" id="pw-old" placeholder="Old Password" required>
+                    <input type="password" id="pw-new" placeholder="New Password" required>
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </form>
+            </div>
+        `;
+        // Delay attach to ensure DOM is ready
+        setTimeout(() => {
+            const form = document.getElementById('pw-form');
+            if(form) form.addEventListener('submit', async(e)=>{
+                e.preventDefault();
+                const res = await fetch('/api/users/password', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        currentPassword: document.getElementById('pw-old').value,
+                        newPassword: document.getElementById('pw-new').value
+                    })
+                });
+                if(res.ok) { alert("Password Updated"); document.getElementById('pw-form').reset(); }
+                else alert("Failed");
+            });
+        }, 0);
+    }
+
+    async function renderProjectsList() {
+        mainContent.innerHTML = `
+            <div class="flex-between mb-2">
+                <h2>All Projects</h2>
+                <button class="btn btn-primary" onclick="openModal('createProjectModal')">New Project</button>
+            </div>
+            <div id="proj-list" class="grid-3"></div>
+        `;
+        const res = await fetch('/api/projects');
+        const projs = await res.json();
+        const list = document.getElementById('proj-list');
+        projs.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.innerHTML = `<h3>${p.name}</h3><p>${p.status}</p><button class="btn btn-outline mt-2" onclick="handleProjectChange(${p.id})">Open</button>`;
+            list.appendChild(div);
+        });
+    }
+    
+    // ==========================================
+    // 7. GLOBAL LISTENERS & FORMS
+    // ==========================================
+
     socket.on('task:update', (data) => {
-        // If we are viewing the project that was updated, refresh the list
-        if (state.currentProject == data.projectId && document.querySelector('.nav-link[data-page="tasks"]').classList.contains('active')) {
-            renderTasksPage();
-        }
+        if (state.currentProject == data.projectId && document.querySelector('.nav-link[data-page="tasks"]').classList.contains('active')) renderTasksPage();
+    });
+    socket.on('project:new', loadProjects);
+    socket.on('project:members_changed', (data) => {
+        if (state.currentProject == data.projectId && document.querySelector('.nav-link[data-page="members"]').classList.contains('active')) renderMembersPage();
+    });
+    socket.on('announcement:new', (data) => {
+         if (document.querySelector('.nav-link[data-page="announcements"]').classList.contains('active')) renderAnnouncementsPage();
+         else alert("New Announcement: " + data.title);
     });
 
-    // Make deleteUser globally accessible
     window.deleteUser = async (id) => {
-        if(confirm('Are you sure you want to delete this user?')) {
-            await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
-            renderAccountsPage();
-        }
+        if(confirm('Delete?')) { await fetch(`/api/admin/users/${id}`, {method:'DELETE'}); renderAccountsPage(); }
     };
     
-    // --- 5. SOCKET LISTENERS ---
-    socket.on('project:new', (data) => {
-        console.log('New project created:', data);
-        loadProjects(); // Refresh dropdown
+    // --- Modals Form Submissions ---
+    
+    // 1. Project Create
+    const cpForm = document.getElementById('create-project-form');
+    if(cpForm) cpForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await fetch('/api/projects', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: document.getElementById('cp-name').value,
+                description: document.getElementById('cp-desc').value,
+                start_date: document.getElementById('cp-start').value,
+                end_date: document.getElementById('cp-end').value
+            })
+        });
+        closeModal('createProjectModal');
+        loadProjects();
+    });
+
+    // 2. Task Create
+    const ctForm = document.getElementById('create-task-form');
+    if(ctForm) ctForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await fetch('/api/tasks', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                project_id: state.currentProject,
+                name: document.getElementById('ct-name').value,
+                description: document.getElementById('ct-desc').value,
+                due_date: document.getElementById('ct-due').value,
+                assigned_to_id: document.getElementById('ct-assignee').value
+            })
+        });
+        closeModal('createTaskModal');
+    });
+
+    // 3. User Create (Admin)
+    const cuForm = document.getElementById('create-user-form');
+    if(cuForm) cuForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await fetch('/api/admin/users', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                username: document.getElementById('cu-username').value,
+                email: document.getElementById('cu-email').value,
+                password: document.getElementById('cu-password').value,
+                role_id: document.getElementById('cu-role').value
+            })
+        });
+        closeModal('createUserModal');
+        if(document.querySelector('.nav-link[data-page="accounts"]').classList.contains('active')) renderAccountsPage();
+    });
+
+    // 4. Manage Members Modal & Form
+    window.openManageMembersModal = async () => {
+        openModal('manageMembersModal');
+        const list = document.getElementById('members-list-container');
+        list.innerHTML = 'Loading...';
+        
+        try {
+            const [uRes, mRes] = await Promise.all([
+                fetch('/api/admin/users'), 
+                fetch(`/api/projects/${state.currentProject}/members/stats`)
+            ]);
+            const users = await uRes.json();
+            const members = await mRes.json();
+            
+            // Create map of current member IDs to their Roles
+            const memberMap = {};
+            members.forEach(m => memberMap[m.id] = m.role_in_project);
+            
+            list.innerHTML = '';
+            users.forEach(u => {
+                const isChecked = memberMap.hasOwnProperty(u.id);
+                const roleVal = memberMap[u.id] || 'Member';
+                
+                const row = document.createElement('div');
+                row.className = 'flex-between mb-2';
+                row.style.borderBottom = '1px solid #eee';
+                row.style.paddingBottom = '5px';
+                
+                row.innerHTML = `
+                    <div style="display:flex; align-items:center;">
+                        <input type="checkbox" class="mem-chk" value="${u.id}" ${isChecked ? 'checked' : ''} style="width:auto; margin-right:10px;">
+                        <span>${u.username}</span>
+                    </div>
+                    <input type="text" class="mem-role" value="${roleVal}" placeholder="Role" style="width:100px; margin:0;" ${isChecked ? '' : 'disabled'}>
+                `;
+                
+                // Toggle input on check
+                const chk = row.querySelector('.mem-chk');
+                const inp = row.querySelector('.mem-role');
+                chk.addEventListener('change', () => { inp.disabled = !chk.checked; });
+                
+                list.appendChild(row);
+            });
+        } catch(e) { console.error(e); }
+    };
+    
+    const mmForm = document.getElementById('manage-members-form');
+    if(mmForm) mmForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const rows = document.querySelectorAll('#members-list-container .flex-between');
+        const selectedMembers = [];
+        
+        rows.forEach(row => {
+            const chk = row.querySelector('.mem-chk');
+            const inp = row.querySelector('.mem-role');
+            if(chk.checked) {
+                selectedMembers.push({ id: chk.value, role: inp.value });
+            }
+        });
+
+        await fetch(`/api/projects/${state.currentProject}/members`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ members: selectedMembers })
+        });
+        closeModal('manageMembersModal');
+        renderMembersPage();
     });
 
 });
