@@ -4,39 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Apex Systems</title>
-    <link rel="stylesheet" href="/css/style.css">
-    <!-- Only using Bootstrap Icons, NO Bootstrap CSS framework -->
+    <!-- Font: Poppins for that modern look -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
 <!-- Sidebar -->
 <aside>
-    <a href="/" class="brand">🦖 Apex <span>Systems</span></a>
+    <div class="brand">
+        <div class="logo-icon"><i class="bi bi-ui-checks-grid"></i></div>
+        <span>Oripio<small>Apex</small></span>
+    </div>
     
-    <select id="global-project-selector">
-        <option disabled selected>Select Project...</option>
-    </select>
-
-    <nav>
-        <li class="nav-item"><a href="#" class="nav-link active" data-page="dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-        <li class="nav-item"><a href="#" class="nav-link" data-page="tasks"><i class="bi bi-list-check"></i> Tasks</a></li>
-        <li class="nav-item"><a href="#" class="nav-link" data-page="gantt"><i class="bi bi-bar-chart-steps"></i> Gantt (Events)</a></li>
-        <li class="nav-item"><a href="#" class="nav-link" data-page="members"><i class="bi bi-people"></i> Members</a></li>
-        <li class="nav-item"><a href="#" class="nav-link" data-page="projects"><i class="bi bi-folder"></i> Projects</a></li>
-        <li class="nav-item"><a href="#" class="nav-link" data-page="announcements"><i class="bi bi-megaphone"></i> Announcements</a></li>
-        <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top:10px;">
-            <li class="nav-item"><a href="#" class="nav-link" data-page="logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+    <div class="sidebar-menu">
+        <label class="menu-label">MAIN MENU</label>
+        
+        <!-- Project Selector Styled as a menu item -->
+        <div class="project-select-wrapper">
+            <i class="bi bi-folder2-open"></i>
+            <select id="global-project-selector">
+                <option disabled selected>Select Project...</option>
+            </select>
+            <i class="bi bi-chevron-down arrow"></i>
         </div>
-    </nav>
+
+        <nav>
+            <li class="nav-item"><a href="#" class="nav-link active" data-page="dashboard"><i class="bi bi-grid"></i> Dashboard</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="tasks"><i class="bi bi-check-circle"></i> Tasks</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="gantt"><i class="bi bi-bar-chart"></i> Roadmap</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="members"><i class="bi bi-people"></i> Team</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="projects"><i class="bi bi-folder"></i> All Projects</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="announcements"><i class="bi bi-megaphone"></i> News</a></li>
+        </nav>
+
+        <label class="menu-label" style="margin-top: 20px;">GENERAL</label>
+        <nav>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="settings"><i class="bi bi-gear"></i> Settings</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="logout"><i class="bi bi-box-arrow-right"></i> Log out</a></li>
+        </nav>
+    </div>
 </aside>
 
 <!-- Main Content -->
 <div id="main-wrapper">
     <header>
-        <h3 id="current-project-display">No Project Selected</h3>
-        <div>
-            <span id="user-display">User</span>
+        <div class="header-search">
+            <i class="bi bi-search"></i>
+            <input type="text" placeholder="Search anything...">
+        </div>
+        <div class="header-profile">
+            <div class="notification-btn"><i class="bi bi-bell"></i></div>
+            <div class="user-info">
+                <div class="user-txt">
+                    <span id="user-display">User</span>
+                    <small id="current-project-display">No Project</small>
+                </div>
+                <div class="avatar"><i class="bi bi-person-fill"></i></div>
+            </div>
         </div>
     </header>
 
@@ -45,14 +72,12 @@
     </main>
 </div>
 
-<!-- CUSTOM MODALS (New Structure) -->
-
-<!-- Event Modal (For Gantt CRUD) -->
+<!-- Event Modal -->
 <div id="eventModal" class="modal-overlay">
-    <div class="modal-box">
+    <div class="modal-box fade-up">
         <div class="flex-between mb-2">
             <h3>Manage Event</h3>
-            <button class="btn btn-outline" onclick="closeModal('eventModal')">X</button>
+            <button class="btn-icon" onclick="closeModal('eventModal')"><i class="bi bi-x-lg"></i></button>
         </div>
         <form id="event-form">
             <input type="hidden" id="ev-id">
@@ -64,13 +89,57 @@
                 <div><label>End</label><input type="date" id="ev-end" required></div>
             </div>
             
-            <label>Color</label>
-            <input type="color" id="ev-color" value="#ffc107" style="height: 40px;">
+            <label>Color Tag</label>
+            <div class="color-picker-wrapper">
+                <input type="color" id="ev-color" value="#10b981">
+            </div>
 
             <div class="flex-between mt-2">
                 <button type="button" id="btn-delete-event" class="btn btn-danger hidden" onclick="deleteEvent()">Delete</button>
-                <button type="submit" class="btn btn-primary">Save Event</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
+        </form>
+    </div>
+</div>
+
+<!-- GENERIC MODALS PLACEHOLDER (Will be injected by JS or keep existing) -->
+<div id="createProjectModal" class="modal-overlay">
+    <div class="modal-box fade-up">
+        <h3>Create New Project</h3>
+        <form id="create-project-form">
+            <input type="text" id="cp-name" placeholder="Project Name" required>
+            <input type="text" id="cp-desc" placeholder="Description">
+            <div class="grid-2">
+                <input type="date" id="cp-start" required>
+                <input type="date" id="cp-end" required>
+            </div>
+            <button type="submit" class="btn btn-primary mt-2">Create Project</button>
+            <button type="button" class="btn btn-outline mt-2" onclick="closeModal('createProjectModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<div id="createTaskModal" class="modal-overlay">
+    <div class="modal-box fade-up">
+        <h3>New Task</h3>
+        <form id="create-task-form">
+            <input type="text" id="ct-name" placeholder="Task Name" required>
+            <textarea id="ct-desc" placeholder="Description"></textarea>
+            <input type="date" id="ct-due" required>
+            <select id="ct-assignee"></select>
+            <button type="submit" class="btn btn-primary mt-2">Add Task</button>
+            <button type="button" class="btn btn-outline mt-2" onclick="closeModal('createTaskModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<div id="manageMembersModal" class="modal-overlay">
+    <div class="modal-box fade-up">
+        <h3>Manage Team</h3>
+        <form id="manage-members-form">
+            <div id="members-list-container" style="max-height: 300px; overflow-y: auto;"></div>
+            <button type="submit" class="btn btn-primary mt-2">Save Team</button>
+            <button type="button" class="btn btn-outline mt-2" onclick="closeModal('manageMembersModal')">Close</button>
         </form>
     </div>
 </div>

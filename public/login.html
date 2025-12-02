@@ -2,25 +2,55 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login - Apex</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <title>Login - Apex Systems</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { justify-content: center; align-items: center; background: #333; }
-        .login-box { background: #fff; padding: 40px; border-radius: 8px; width: 350px; }
-        h2 { text-align: center; margin-bottom: 20px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; 
+            background: #f0f2f5; 
+            font-family: 'Poppins', sans-serif; 
+        }
+        .login-box { 
+            background: #fff; 
+            padding: 50px; 
+            border-radius: 20px; 
+            width: 400px; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); 
+            text-align: center;
+        }
+        h2 { margin-bottom: 30px; color: #1f2937; }
+        label { display: block; text-align: left; margin-bottom: 5px; color: #6b7280; font-size: 0.9rem; font-weight: 500; }
+        input { 
+            width: 100%; padding: 12px; margin-bottom: 20px; 
+            border: 1px solid #e5e7eb; border-radius: 10px; 
+            background: #f9fafb; outline: none; transition: 0.2s;
+        }
+        input:focus { border-color: #10b981; background: #fff; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1); }
+        button { 
+            width: 100%; padding: 12px; 
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+            color: #fff; border: none; border-radius: 10px; 
+            font-weight: 600; cursor: pointer; transition: 0.2s;
+            font-size: 1rem;
+        }
+        button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .logo { font-size: 3rem; color: #10b981; margin-bottom: 10px; display: block; }
     </style>
 </head>
 <body>
     <div class="login-box">
-        <h2>🦖 Apex</h2>
+        <span class="logo">🦖</span>
+        <h2>Apex Systems</h2>
         <form id="login-form">
-            <label>Email</label>
-            <input type="email" id="email" required>
+            <label>Email Address</label>
+            <input type="email" id="email" required placeholder="user@apex.com">
             <label>Password</label>
-            <input type="password" id="password" required>
-            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">Login</button>
+            <input type="password" id="password" required placeholder="••••••••">
+            <button type="submit">Sign In</button>
         </form>
-        <div id="alert" style="color: red; margin-top: 10px; text-align: center;"></div>
+        <div id="alert" style="color: #ef4444; margin-top: 15px; font-size: 0.9rem;"></div>
     </div>
     <script>
         document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -33,7 +63,7 @@
                 body: JSON.stringify({ email, password })
             });
             if(res.ok) window.location.href = '/';
-            else document.getElementById('alert').innerText = "Login Failed";
+            else document.getElementById('alert').innerText = "Invalid credentials. Please try again.";
         });
     </script>
 </body>
