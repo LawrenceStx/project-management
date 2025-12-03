@@ -38,6 +38,7 @@ aside {
     transition: transform 0.3s ease;
     z-index: 1000;
     height: 100%;
+    overflow: auto;
 }
 
 /* ... Keep Sidebar inner styles (brand, nav-link, etc) ... */
