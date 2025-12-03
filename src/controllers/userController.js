@@ -43,57 +43,77 @@ exports.initialSetup = async (req, res) => {
  * [ADMIN] Get a list of all users/accounts.
  */
 exports.getAllUsers = (req, res) => {
-    const query = `
-        SELECT u.id, u.username, u.email, r.name AS role, u.is_active
-        FROM users u 
-        JOIN roles r ON u.role_id = r.id 
-        ORDER BY u.id
-    `;
-    db.all(query, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: 'Failed to fetch users.' });
-        res.json(rows);
-    });
+    const query = `SELECT u.id, u.username, u.email, r.name AS role FROM users u JOIN roles r ON u.role_id = r.id ORDER BY u.id`;
+    db.all(query, [], (err, rows) => { if (err) return res.status(500).json({ error: 'DB Error' }); res.json(rows); });
 };
 
 /**
  * [ADMIN] Create a new user (Assigns member role by default).
  */
 exports.createUser = async (req, res) => {
-    const { username, email, password, role_id = 2 } = req.body;
-    
+    const { username, email, password, role_id } = req.body;
+
+    if (!username || !email || !password) {
+        return res.status(400).json({ error: "All fields are required." });
+    }
+
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        db.run(
-            "INSERT INTO users (username, email, password, role_id, is_active) VALUES (?, ?, ?, ?, 1)",
-            [username, email, hashedPassword, role_id],
+        db.run("INSERT INTO users (username, email, password, role_id) VALUES (?, ?, ?, ?)", 
+            [username, email, hashedPassword, role_id || 2], 
             function(err) {
                 if (err) {
-                    return res.status(400).json({ error: 'User creation failed. Email/Username may exist.' });
+                    console.error("❌ Database Error:", err.message);
+                    
+                    // Check for duplicate entry
+                    if (err.message.includes('UNIQUE constraint failed')) {
+                        if (err.message.includes('users.email')) {
+                            return res.status(409).json({ error: 'This Email is already registered.' });
+                        }
+                        if (err.message.includes('users.username')) {
+                            return res.status(409).json({ error: 'This Username is already taken.' });
+                        }
+                        return res.status(409).json({ error: 'User already exists.' });
+                    }
+                    
+                    return res.status(500).json({ error: 'Database creation failed: ' + err.message });
                 }
-                res.status(201).json({ message: 'User created successfully.', userId: this.lastID });
+                res.status(201).json({ message: 'User created successfully', id: this.lastID });
             }
         );
     } catch (e) {
-        res.status(500).json({ error: 'Internal server error.' });
+        console.error("Server Error:", e);
+        res.status(500).json({ error: 'Internal server error processing password.' });
     }
 };
+
 
 /**
  * [ADMIN] Update user details (e.g., role, active status).
  */
-exports.updateUser = (req, res) => {
+exports.updateUser = async (req, res) => {
     const { id } = req.params;
-    const { username, email, role_id, is_active } = req.body;
+    const { username, email, role_id, password } = req.body;
     
-    // Check which fields are provided for a dynamic update
+    // Dynamic SQL generation
     const fields = [];
     const values = [];
 
-    if (username !== undefined) { fields.push("username = ?"); values.push(username); }
-    if (email !== undefined) { fields.push("email = ?"); values.push(email); }
-    if (role_id !== undefined) { fields.push("role_id = ?"); values.push(role_id); }
-    if (is_active !== undefined) { fields.push("is_active = ?"); values.push(is_active); }
+    if (username) { fields.push("username = ?"); values.push(username); }
+    if (email) { fields.push("email = ?"); values.push(email); }
+    if (role_id) { fields.push("role_id = ?"); values.push(role_id); }
+    
+    // Only hash and update password if it's provided (not empty)
+    if (password && password.trim() !== "") {
+        try {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            fields.push("password = ?");
+            values.push(hashedPassword);
+        } catch (e) {
+            return res.status(500).json({ error: "Password hashing failed" });
+        }
+    }
 
     if (fields.length === 0) {
         return res.status(400).json({ error: 'No fields provided for update.' });
@@ -104,9 +124,10 @@ exports.updateUser = (req, res) => {
 
     db.run(query, values, function(err) {
         if (err) {
+            if(err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Username or Email already taken.' });
             return res.status(500).json({ error: 'Failed to update user.' });
         }
-        res.json({ message: `User ${id} updated successfully.` });
+        res.json({ message: `User updated successfully.` });
     });
 };
 
@@ -114,16 +135,9 @@ exports.updateUser = (req, res) => {
  * [ADMIN] Delete a user.
  */
 exports.deleteUser = (req, res) => {
-    const { id } = req.params;
-
-    db.run("DELETE FROM users WHERE id = ?", [id], function(err) {
-        if (err) {
-            return res.status(500).json({ error: 'Failed to delete user.' });
-        }
-        if (this.changes === 0) {
-             return res.status(404).json({ error: 'User not found.' });
-        }
-        res.json({ message: `User ${id} deleted.` });
+    db.run("DELETE FROM users WHERE id = ?", [req.params.id], function(err) {
+        if (err) return res.status(500).json({ error: 'Delete failed' });
+        res.json({ message: 'Deleted' });
     });
 };
 
@@ -182,4 +196,33 @@ exports.changePassword = async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: 'Server error.' });
     }
+};
+
+exports.getDashboardStats = (req, res) => {
+    const userId = req.session.user.id;
+    const roleId = req.session.user.role_id;
+    
+    // Parallel queries
+    const qProjects = roleId === 1 ? "SELECT COUNT(*) as c FROM projects" : "SELECT COUNT(*) as c FROM project_members WHERE user_id = ?";
+    const pParams = roleId === 1 ? [] : [userId];
+    
+    const qTasks = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done'";
+    const qUsers = "SELECT COUNT(*) as c FROM users";
+    
+    db.serialize(() => {
+        let stats = { projects: 0, myTasks: 0, users: 0 };
+        
+        db.get(qProjects, pParams, (e, r) => {
+            if(!e && r) stats.projects = r.c;
+            
+            db.get(qTasks, [userId], (e2, r2) => {
+                if(!e2 && r2) stats.myTasks = r2.c;
+                
+                db.get(qUsers, [], (e3, r3) => {
+                    if(!e3 && r3) stats.users = r3.c;
+                    res.json(stats);
+                });
+            });
+        });
+    });
 };

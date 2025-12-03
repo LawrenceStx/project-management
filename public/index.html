@@ -4,25 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Apex Systems</title>
-    <!-- Font: Poppins for that modern look -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
+<!-- Mobile Overlay -->
+<div id="mobile-overlay"></div>
+
 <!-- Sidebar -->
-<aside>
+<aside id="sidebar">
     <div class="brand">
         <div class="logo-icon"><i class="bi bi-ui-checks-grid"></i></div>
-        <span>Oripio<small>Apex</small></span>
+        <span>Apex<small>Systems</small></span>
+        <!-- Mobile Close Button -->
+        <button id="close-sidebar-btn" class="btn-icon mobile-only"><i class="bi bi-x-lg"></i></button>
     </div>
     
     <div class="sidebar-menu">
         <label class="menu-label">MAIN MENU</label>
         
-        <!-- Project Selector Styled as a menu item -->
         <div class="project-select-wrapper">
             <i class="bi bi-folder2-open"></i>
             <select id="global-project-selector">
@@ -36,12 +38,13 @@
             <li class="nav-item"><a href="#" class="nav-link" data-page="tasks"><i class="bi bi-check-circle"></i> Tasks</a></li>
             <li class="nav-item"><a href="#" class="nav-link" data-page="gantt"><i class="bi bi-bar-chart"></i> Roadmap</a></li>
             <li class="nav-item"><a href="#" class="nav-link" data-page="members"><i class="bi bi-people"></i> Team</a></li>
-            <li class="nav-item"><a href="#" class="nav-link" data-page="projects"><i class="bi bi-folder"></i> All Projects</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="projects"><i class="bi bi-folder"></i> Projects</a></li>
             <li class="nav-item"><a href="#" class="nav-link" data-page="announcements"><i class="bi bi-megaphone"></i> News</a></li>
         </nav>
 
-        <label class="menu-label" style="margin-top: 20px;">GENERAL</label>
+        <label class="menu-label" style="margin-top: 20px;">ADMIN</label>
         <nav>
+            <li class="nav-item" id="nav-accounts" style="display:none;"><a href="#" class="nav-link" data-page="accounts"><i class="bi bi-person-badge"></i> Accounts</a></li>
             <li class="nav-item"><a href="#" class="nav-link" data-page="settings"><i class="bi bi-gear"></i> Settings</a></li>
             <li class="nav-item"><a href="#" class="nav-link" data-page="logout"><i class="bi bi-box-arrow-right"></i> Log out</a></li>
         </nav>
@@ -51,12 +54,13 @@
 <!-- Main Content -->
 <div id="main-wrapper">
     <header>
-        <div class="header-search">
-            <i class="bi bi-search"></i>
-            <input type="text" placeholder="Search anything...">
+        <div style="display:flex; align-items:center; gap:15px;">
+            <!-- Hamburger Button -->
+            <button id="hamburger-btn" class="btn-icon mobile-only"><i class="bi bi-list" style="font-size: 1.5rem; color:#333;"></i></button>
+            <h3 id="header-title" style="margin:0; font-size:1.2rem;">Dashboard</h3>
         </div>
+        
         <div class="header-profile">
-            <div class="notification-btn"><i class="bi bi-bell"></i></div>
             <div class="user-info">
                 <div class="user-txt">
                     <span id="user-display">User</span>
@@ -68,41 +72,40 @@
     </header>
 
     <main id="main-content">
-        <!-- Dynamic Content Here -->
+        <!-- Dynamic Content -->
     </main>
 </div>
 
-<!-- Event Modal -->
-<div id="eventModal" class="modal-overlay">
+<!-- Edit Project Modal -->
+<div id="editProjectModal" class="modal-overlay">
     <div class="modal-box fade-up">
         <div class="flex-between mb-2">
-            <h3>Manage Event</h3>
-            <button class="btn-icon" onclick="closeModal('eventModal')"><i class="bi bi-x-lg"></i></button>
+            <h3>Edit Project</h3>
+            <button class="btn-icon" onclick="closeModal('editProjectModal')"><i class="bi bi-x-lg"></i></button>
         </div>
-        <form id="event-form">
-            <input type="hidden" id="ev-id">
-            <label>Event Name</label>
-            <input type="text" id="ev-name" required>
-            
+        <form id="edit-project-form">
+            <input type="hidden" id="ep-id">
+            <label>Project Name</label>
+            <input type="text" id="ep-name" required>
+            <label>Description</label>
+            <input type="text" id="ep-desc">
+            <label>Status</label>
+            <select id="ep-status">
+                <option value="Planning">Planning</option>
+                <option value="Active">Active</option>
+                <option value="Completed">Completed</option>
+                <option value="On Hold">On Hold</option>
+            </select>
             <div class="grid-2">
-                <div><label>Start</label><input type="date" id="ev-start" required></div>
-                <div><label>End</label><input type="date" id="ev-end" required></div>
+                <div><label>Start</label><input type="date" id="ep-start" required></div>
+                <div><label>End</label><input type="date" id="ep-end" required></div>
             </div>
-            
-            <label>Color Tag</label>
-            <div class="color-picker-wrapper">
-                <input type="color" id="ev-color" value="#10b981">
-            </div>
-
-            <div class="flex-between mt-2">
-                <button type="button" id="btn-delete-event" class="btn btn-danger hidden" onclick="deleteEvent()">Delete</button>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-            </div>
+            <button type="submit" class="btn btn-primary mt-2">Update Project</button>
         </form>
     </div>
 </div>
 
-<!-- GENERIC MODALS PLACEHOLDER (Will be injected by JS or keep existing) -->
+<!-- (Keep your other modals: eventModal, createProjectModal, createTaskModal, manageMembersModal here) -->
 <div id="createProjectModal" class="modal-overlay">
     <div class="modal-box fade-up">
         <h3>Create New Project</h3>
@@ -140,6 +143,79 @@
             <div id="members-list-container" style="max-height: 300px; overflow-y: auto;"></div>
             <button type="submit" class="btn btn-primary mt-2">Save Team</button>
             <button type="button" class="btn btn-outline mt-2" onclick="closeModal('manageMembersModal')">Close</button>
+        </form>
+    </div>
+</div>
+
+<!-- Create User Modal (For Accounts Page) -->
+<div id="createUserModal" class="modal-overlay">
+    <div class="modal-box fade-up">
+        <h3>Create New User</h3>
+        <form id="create-user-form">
+            <input type="text" id="cu-username" placeholder="Username" required>
+            <input type="email" id="cu-email" placeholder="Email" required>
+            <input type="password" id="cu-password" placeholder="Password" required>
+            <select id="cu-role">
+                <option value="2">Member</option>
+                <option value="1">Admin</option>
+            </select>
+            <button type="submit" class="btn btn-primary mt-2">Create User</button>
+            <button type="button" class="btn btn-outline mt-2" onclick="closeModal('createUserModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<!-- Event Modal -->
+<div id="eventModal" class="modal-overlay">
+    <div class="modal-box fade-up">
+        <div class="flex-between mb-2">
+            <h3>Manage Event</h3>
+            <button class="btn-icon" onclick="closeModal('eventModal')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <form id="event-form">
+            <input type="hidden" id="ev-id">
+            <label>Event Name</label>
+            <input type="text" id="ev-name" required>
+            <div class="grid-2">
+                <div><label>Start</label><input type="date" id="ev-start" required></div>
+                <div><label>End</label><input type="date" id="ev-end" required></div>
+            </div>
+            <label>Color Tag</label>
+            <div class="color-picker-wrapper">
+                <input type="color" id="ev-color" value="#10b981">
+            </div>
+            <div class="flex-between mt-2">
+                <button type="button" id="btn-delete-event" class="btn btn-danger hidden" onclick="deleteEvent()">Delete</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal-overlay">
+    <div class="modal-box fade-up">
+        <h3>Edit User</h3>
+        <form id="edit-user-form">
+            <input type="hidden" id="eu-id">
+            
+            <label>Username</label>
+            <input type="text" id="eu-username" required>
+            
+            <label>Email</label>
+            <input type="email" id="eu-email" required>
+            
+            <label>Role</label>
+            <select id="eu-role">
+                <option value="2">Member</option>
+                <option value="1">Admin</option>
+            </select>
+            
+            <label>New Password <small style="color:#999; font-weight:400;">(Leave blank to keep current)</small></label>
+            <input type="password" id="eu-password" placeholder="Enter new password to reset">
+            
+            <button type="submit" class="btn btn-primary mt-2">Save Changes</button>
+            <button type="button" class="btn btn-outline mt-2" onclick="closeModal('editUserModal')">Cancel</button>
         </form>
     </div>
 </div>

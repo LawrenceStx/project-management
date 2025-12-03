@@ -23,21 +23,26 @@ router.route('/admin/users/:id')
     .delete(isAdmin, userController.deleteUser);
 router.get('/projects/:projectId/members/stats', userController.getMemberStats);
 router.put('/users/password', userController.changePassword);
+router.put('/admin/users/:id', isAdmin, userController.updateUser);
+
+router.get('/dashboard/stats', userController.getDashboardStats);
 
 
 // --- PROJECT Management (Mostly ADMIN, GET is AUTH) ---
 
-// Get all projects the user can see
-router.get('/projects', projectController.getAllProjects); 
-// Create a new project (Admin only)
-router.post('/projects', isAdmin, projectController.createProject); 
-
-router.route('/projects/:id')
-    .put(isAdmin, projectController.updateProject); 
-    // Delete project route could be added here (isAdmin)
-
-// Project Members Management (Admin only)
+router.get('/projects', projectController.getAllProjects);
+router.post('/projects', isAdmin, projectController.createProject);
+router.put('/projects/:id', isAdmin, projectController.updateProject);
+router.delete('/projects/:id', isAdmin, (req, res) => {
+    // Quick inline controller for delete to save file space, or move to controller
+    const db = require('../db/database');
+    db.run("DELETE FROM projects WHERE id = ?", [req.params.id], (err) => {
+        if(err) return res.status(500).json({error: "DB Error"});
+        res.json({message: "Project deleted"});
+    });
+});
 router.put('/projects/:projectId/members', isAdmin, projectController.manageProjectMembers);
+
 
 
 // --- DASHBOARD/CORE API (Placeholder) ---
