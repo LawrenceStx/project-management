@@ -128,10 +128,37 @@
         <form id="create-task-form">
             <input type="text" id="ct-name" placeholder="Task Name" required>
             <textarea id="ct-desc" placeholder="Description"></textarea>
-            <input type="date" id="ct-due" required>
-            <select id="ct-assignee"></select>
+            <!-- NEW INPUTS -->
+            <input type="url" id="ct-link" placeholder="External Link (Optional)">
+            <input type="url" id="ct-youtube" placeholder="YouTube URL (Optional)">
+            
+            <div class="grid-2">
+                <input type="date" id="ct-due" required>
+                <select id="ct-assignee"></select>
+            </div>
             <button type="submit" class="btn btn-primary mt-2">Add Task</button>
             <button type="button" class="btn btn-outline mt-2" onclick="closeModal('createTaskModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<div id="editTaskModal" class="modal-overlay">
+    <div class="modal-box fade-up">
+        <div class="flex-between mb-2">
+            <h3>Edit Task</h3>
+            <button class="btn-icon" onclick="closeModal('editTaskModal')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <form id="edit-task-form">
+            <input type="hidden" id="et-id">
+            <label>Name</label><input type="text" id="et-name" required>
+            <label>Description</label><textarea id="et-desc"></textarea>
+            <label>External Link</label><input type="url" id="et-link">
+            <label>YouTube URL</label><input type="url" id="et-youtube">
+            <div class="grid-2">
+                <div><label>Due Date</label><input type="date" id="et-due" required></div>
+                <div><label>Assign To</label><select id="et-assignee"></select></div>
+            </div>
+            <button type="submit" class="btn btn-primary mt-2">Save Changes</button>
         </form>
     </div>
 </div>

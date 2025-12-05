@@ -358,22 +358,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function renderTasksPage() {
         const projectId = state.currentProject;
+        const isAdmin = state.user.role_id === 1;
+
         mainContent.innerHTML = `
             <div class="flex-between mb-2">
                 <h2>Tasks</h2>
                 <div style="display:flex; gap:10px;">
-                     <select id="task-filter" style="width: auto; margin:0;">
+                    <select id="task-filter" style="width: auto; margin:0;">
                         <option value="All">All Status</option>
                         <option value="Todo">Todo</option>
                         <option value="In Progress">In Progress</option>
                         <option value="Done">Done</option>
                     </select>
-                    <button class="btn btn-primary" onclick="openCreateTaskModal()"><i class="bi bi-plus-lg"></i> New Task</button>
+                    ${isAdmin ? `<button class="btn btn-primary" onclick="openCreateTaskModal()"><i class="bi bi-plus-lg"></i> New Task</button>` : ''}
                 </div>
             </div>
-            <div id="task-container" class="grid-3">Loading tasks...</div>
+            <div id="task-container" class="grid-3">Loading...</div>
         `;
-        
+
         document.getElementById('task-filter').addEventListener('change', (e) => { 
             state.taskFilter = e.target.value; 
             renderTasksPage(); 
@@ -382,46 +384,57 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const res = await fetch(`/api/projects/${projectId}/tasks`);
             let tasks = await res.json();
+            if (state.taskFilter !== 'All') tasks = tasks.filter(t => t.status === state.taskFilter);
+            
             const container = document.getElementById('task-container');
             container.innerHTML = '';
-            
-            if (state.taskFilter !== 'All') {
-                tasks = tasks.filter(t => t.status === state.taskFilter);
-            }
 
-            if (tasks.length === 0) {
-                container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:30px; color:var(--text-muted)">No tasks found.</div>`; 
-                return; 
-            }
+            if(tasks.length === 0) { container.innerHTML = 'No tasks found.'; return; }
 
-            tasks.forEach(task => {
-                const isAdmin = state.user.role_id === 1;
-                const statusClass = task.status.startsWith('In') ? 'status-In' : `status-${task.status}`;
+            tasks.forEach(t => {
+                const statusClass = t.status === 'In Progress' ? 'status-In' : `status-${t.status}`;
                 
-                const card = document.createElement('div');
-                card.className = 'card fade-up';
-                card.innerHTML = `
+                // YouTube Embed Logic
+                let vid = '';
+                if(t.youtube_link) {
+                    const match = t.youtube_link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
+                    if (match && match[2].length === 11) {
+                        vid = `<div class="video-container"><iframe src="//www.youtube.com/embed/${match[2]}" allowfullscreen></iframe></div>`;
+                    }
+                }
+                
+                // Link Logic
+                let link = t.external_link ? `<a href="${t.external_link}" target="_blank" class="task-link-btn"><i class="bi bi-link-45deg"></i> Open Link</a>` : '';
+
+                // Card HTML
+                const div = document.createElement('div');
+                div.className = `card fade-up ${statusClass}`;
+                div.innerHTML = `
                     <div class="flex-between">
-                        <span class="task-status-badge ${statusClass}">${task.status}</span>
-                        ${isAdmin ? `<button class="btn-icon" style="color:#ef4444; font-size:0.9rem;" onclick="deleteTask(${task.id})"><i class="bi bi-trash"></i></button>` : ''}
+                        <span class="task-status-badge ${statusClass}">${t.status}</span>
+                        ${isAdmin ? `
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn-icon" onclick='openEditTask(${JSON.stringify(t).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
+                                <button class="btn-icon" style="color:#ef4444" onclick="deleteTask(${t.id})"><i class="bi bi-trash"></i></button>
+                            </div>
+                        ` : ''}
                     </div>
-                    <h4 class="mt-2">${task.name}</h4>
-                    <p class="mb-2" style="font-size:0.85rem; color:var(--text-muted);">${task.description || ''}</p>
-                    <div style="border-top:1px solid var(--border); margin-top:15px; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
-                        <small><i class="bi bi-calendar"></i> ${task.due_date || 'No Date'}</small>
-                         <select style="width:auto; margin:0; padding:5px 10px; font-size:0.8rem;" ${isAdmin ? '' : 'disabled'} onchange="updateTaskStatus(${task.id}, this.value)">
-                            <option value="Todo" ${task.status === 'Todo' ? 'selected' : ''}>Todo</option>
-                            <option value="In Progress" ${task.status === 'In Progress' ? 'selected' : ''}>Doing</option>
-                            <option value="Done" ${task.status === 'Done' ? 'selected' : ''}>Done</option>
+                    <h4 class="mt-2">${t.name}</h4>
+                    <p class="preserve-text" style="color:var(--text-muted); font-size:0.9rem;">${t.description||''}</p>
+                    ${link}
+                    ${vid}
+                    <div style="margin-top:15px; padding-top:10px; border-top:1px solid #eee;" class="flex-between">
+                        <small><i class="bi bi-calendar"></i> ${t.due_date||'--'}</small>
+                        <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
+                            <option value="Todo" ${t.status==='Todo'?'selected':''}>Todo</option>
+                            <option value="In Progress" ${t.status==='In Progress'?'selected':''}>Doing</option>
+                            <option value="Done" ${t.status==='Done'?'selected':''}>Done</option>
                         </select>
                     </div>
-                    <div style="margin-top:10px; font-size:0.8rem; color:var(--text-light);">
-                         <i class="bi bi-person"></i> ${task.assigned_to_name || 'Unassigned'}
-                    </div>
                 `;
-                container.appendChild(card);
+                container.appendChild(div);
             });
-        } catch (e) { console.error(e); }
+        } catch(e) { console.error(e); }
     }
 
     async function renderGanttPage() {
@@ -522,39 +535,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         mainContent.innerHTML = `
             <div class="flex-between mb-2">
                 <h2>Team Members</h2>
-                ${isAdmin ? `<button class="btn btn-primary" onclick="openManageMembersModal()"><i class="bi bi-people"></i> Manage Team</button>` : ''}
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="mem-search" placeholder="Search..." style="margin:0; width:150px; padding:8px;">
+                    ${isAdmin ? `<button class="btn btn-primary" onclick="openManageMembersModal()">Manage</button>` : ''}
+                </div>
             </div>
             <div id="members-container" class="grid-3">Loading...</div>
         `;
 
         const res = await fetch(`/api/projects/${projectId}/members/stats`);
-        const members = await res.json();
+        const allMembers = await res.json();
         const container = document.getElementById('members-container');
-        container.innerHTML = '';
 
-        if(members.length === 0) { container.innerHTML = 'No members assigned.'; return; }
-
-        members.forEach(m => {
-            const total = m.total_tasks || 0;
-            const done = m.completed_tasks || 0;
-            const rate = total === 0 ? 0 : Math.round((done / total) * 100);
-
-            const card = document.createElement('div');
-            card.className = 'card text-center fade-up';
-            card.innerHTML = `
-                <img src="https://ui-avatars.com/api/?name=${m.username}&background=random&color=fff" style="border-radius:50%; width:60px; height:60px; margin-bottom:15px; box-shadow:0 5px 15px rgba(0,0,0,0.1);">
-                <h3>${m.username}</h3>
-                <span style="background:#f3f4f6; color:#6b7280; padding:4px 12px; border-radius:15px; font-size:0.8rem; display:inline-block; margin: 8px 0;">${m.role_in_project || 'Member'}</span>
+        const draw = (list) => {
+            container.innerHTML = '';
+            if(list.length===0) { container.innerHTML = 'No members.'; return; }
+            list.forEach(m => {
+                const total = m.total_tasks || 0;
+                const done = m.completed_tasks || 0;
+                const rate = total === 0 ? 0 : Math.round((done / total) * 100);
                 
-                <div style="margin-top:20px; background:#e5e7eb; height:6px; border-radius:3px; overflow:hidden;">
-                    <div style="width:${rate}%; background:var(--primary); height:100%;"></div>
-                </div>
-                <div class="flex-between mt-2" style="font-size:0.8rem; color:var(--text-light);">
-                    <span>Tasks Completed</span>
-                    <strong>${rate}%</strong>
-                </div>
-            `;
-            container.appendChild(card);
+                const div = document.createElement('div');
+                div.className = 'card text-center fade-up';
+                div.innerHTML = `
+                    <img src="https://ui-avatars.com/api/?name=${m.username}&background=random" style="width:50px; height:50px; border-radius:50%; margin-bottom:10px;">
+                    <h3>${m.username}</h3>
+                    <span class="task-status-badge status-Todo">${m.role_in_project}</span>
+                    <div style="margin-top:15px; background:#eee; height:5px; border-radius:3px;">
+                        <div style="width:${rate}%; background:var(--primary); height:100%;"></div>
+                    </div>
+                    <small>Tasks Completed: ${rate}%</small>
+                `;
+                container.appendChild(div);
+            });
+        };
+
+        draw(allMembers);
+
+        document.getElementById('mem-search').addEventListener('keyup', (e) => {
+            const term = e.target.value.toLowerCase();
+            draw(allMembers.filter(m => m.username.toLowerCase().includes(term)));
         });
     }
 
@@ -955,11 +975,55 @@ document.addEventListener('DOMContentLoaded', async () => {
                 project_id: state.currentProject,
                 name: document.getElementById('ct-name').value,
                 description: document.getElementById('ct-desc').value,
+                external_link: document.getElementById('ct-link').value,
+                youtube_link: document.getElementById('ct-youtube').value,
                 due_date: document.getElementById('ct-due').value,
                 assigned_to_id: document.getElementById('ct-assignee').value
             })
         });
         closeModal('createTaskModal');
+    });
+
+    window.openEditTask = async (task) => {
+        document.getElementById('et-id').value = task.id;
+        document.getElementById('et-name').value = task.name;
+        document.getElementById('et-desc').value = task.description || '';
+        document.getElementById('et-link').value = task.external_link || '';
+        document.getElementById('et-youtube').value = task.youtube_link || '';
+        document.getElementById('et-due').value = task.due_date;
+
+        // Load Assignees
+        const res = await fetch('/api/admin/users');
+        const users = await res.json();
+        const sel = document.getElementById('et-assignee');
+        sel.innerHTML = '<option value="">Unassigned</option>';
+        users.forEach(u => {
+            const op = document.createElement('option');
+            op.value = u.id;
+            op.innerText = u.username;
+            if(u.id == task.assigned_to_id) op.selected = true;
+            sel.appendChild(op);
+        });
+        openModal('editTaskModal');
+    };
+
+    const etForm = document.getElementById('edit-task-form');
+    if(etForm) etForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('et-id').value;
+        await fetch(`/api/tasks/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: document.getElementById('et-name').value,
+                description: document.getElementById('et-desc').value,
+                external_link: document.getElementById('et-link').value,
+                youtube_link: document.getElementById('et-youtube').value,
+                due_date: document.getElementById('et-due').value,
+                assigned_to_id: document.getElementById('et-assignee').value
+            })
+        });
+        closeModal('editTaskModal');
     });
 
     // Manage Members Form

@@ -59,7 +59,8 @@ router.delete('/announcements/:id', isAdmin, announcementController.deleteAnnoun
 router.delete('/tasks/:id', taskController.deleteTask);
 router.get('/projects/:projectId/tasks', taskController.getProjectTasks);
 router.post('/tasks', taskController.createTask);
-router.put('/tasks/:id/status', isAdmin, taskController.updateTaskStatus); 
+router.put('/tasks/:id', isAdmin, taskController.updateTaskDetails); // Full edit for Admin
+router.put('/tasks/:id/status', taskController.updateTaskStatus);
 
 
 // --- GANTT EVENTS (New Module) ---
