@@ -123,42 +123,126 @@
 </div>
 
 <div id="createTaskModal" class="modal-overlay">
-    <div class="modal-box fade-up">
-        <h3>New Task</h3>
-        <form id="create-task-form">
-            <input type="text" id="ct-name" placeholder="Task Name" required>
-            <textarea id="ct-desc" placeholder="Description"></textarea>
-            <!-- NEW INPUTS -->
-            <input type="url" id="ct-link" placeholder="External Link (Optional)">
-            <input type="url" id="ct-youtube" placeholder="YouTube URL (Optional)">
-            
-            <div class="grid-2">
-                <input type="date" id="ct-due" required>
-                <select id="ct-assignee"></select>
+    <!-- Added 'modal-lg' class here for width -->
+    <div class="modal-box modal-lg fade-up">
+        <div class="flex-between mb-2" style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div class="stat-icon green" style="width:40px; height:40px; font-size:1.2rem;"><i class="bi bi-flag"></i></div>
+                <div>
+                    <h3 style="margin:0;">New Task</h3>
+                    <small style="color:var(--text-muted)">Assign a new task to your team</small>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary mt-2">Add Task</button>
-            <button type="button" class="btn btn-outline mt-2" onclick="closeModal('createTaskModal')">Cancel</button>
+            <button class="btn-icon" onclick="closeModal('createTaskModal')"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <form id="create-task-form">
+            <!-- ROW 1: Name and Assignee -->
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Task Title</label>
+                    <input type="text" id="ct-name" placeholder="e.g. Research payment flow" required>
+                </div>
+                <div class="form-group">
+                    <label>Assign To</label>
+                    <select id="ct-assignee"></select>
+                </div>
+            </div>
+
+            <!-- ROW 2: Due Date and External Link -->
+            <div class="grid-2">
+                 <div class="form-group">
+                    <label>Due Date</label>
+                    <input type="date" id="ct-due" required>
+                </div>
+                <div class="form-group">
+                    <label>External Link <small style="color:#999; font-weight:400">(Optional)</small></label>
+                    <input type="url" id="ct-link">
+                </div>
+            </div>
+
+            <!-- ROW 3: YouTube (Full Width) -->
+            <div class="form-group">
+                <label>YouTube URL <small style="color:#999; font-weight:400">(Optional - Embeds Video)</small></label>
+                <input type="url" id="ct-youtube">
+            </div>
+
+            <!-- ROW 4: Description (Large) -->
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="ct-desc" placeholder="Describe the requirements..."></textarea>
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="flex-between" style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 10px;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('createTaskModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="padding-left: 30px; padding-right: 30px;">Save Task</button>
+            </div>
         </form>
     </div>
 </div>
 
 <div id="editTaskModal" class="modal-overlay">
-    <div class="modal-box fade-up">
-        <div class="flex-between mb-2">
-            <h3>Edit Task</h3>
+    <div class="modal-box modal-lg fade-up">
+        
+        <!-- Header -->
+        <div class="flex-between modal-header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div class="stat-icon blue" style="width:40px; height:40px; font-size:1.2rem;">
+                    <i class="bi bi-pencil-square"></i>
+                </div>
+                <div>
+                    <h3 style="margin:0;">Edit Task</h3>
+                    <small style="color:var(--text-muted)">Update task details</small>
+                </div>
+            </div>
             <button class="btn-icon" onclick="closeModal('editTaskModal')"><i class="bi bi-x-lg"></i></button>
         </div>
+
         <form id="edit-task-form">
             <input type="hidden" id="et-id">
-            <label>Name</label><input type="text" id="et-name" required>
-            <label>Description</label><textarea id="et-desc"></textarea>
-            <label>External Link</label><input type="url" id="et-link">
-            <label>YouTube URL</label><input type="url" id="et-youtube">
+
+            <!-- ROW 1: Name and Assignee -->
             <div class="grid-2">
-                <div><label>Due Date</label><input type="date" id="et-due" required></div>
-                <div><label>Assign To</label><select id="et-assignee"></select></div>
+                <div class="form-group">
+                    <label>Task Title</label>
+                    <input type="text" id="et-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Assign To</label>
+                    <select id="et-assignee"></select>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary mt-2">Save Changes</button>
+
+            <!-- ROW 2: Due Date and External Link -->
+            <div class="grid-2">
+                 <div class="form-group">
+                    <label>Due Date</label>
+                    <input type="date" id="et-due" required>
+                </div>
+                <div class="form-group">
+                    <label>External Link <small style="color:#999; font-weight:400">(Optional)</small></label>
+                    <input type="url" id="et-link">
+                </div>
+            </div>
+
+            <!-- ROW 3: YouTube (Full Width) -->
+            <div class="form-group">
+                <label>YouTube URL <small style="color:#999; font-weight:400">(Optional)</small></label>
+                <input type="url" id="et-youtube">
+            </div>
+
+            <!-- ROW 4: Description (Large) -->
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="et-desc" style="min-height: 150px; resize: vertical;"></textarea>
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="flex-between modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editTaskModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="padding-left: 30px; padding-right: 30px;">Save Changes</button>
+            </div>
         </form>
     </div>
 </div>

@@ -202,15 +202,26 @@ exports.getDashboardStats = (req, res) => {
     const userId = req.session.user.id;
     const roleId = req.session.user.role_id;
     
-    // Parallel queries
+    // Existing Counts Logic
     const qProjects = roleId === 1 ? "SELECT COUNT(*) as c FROM projects" : "SELECT COUNT(*) as c FROM project_members WHERE user_id = ?";
     const pParams = roleId === 1 ? [] : [userId];
-    
     const qTasks = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done'";
     const qUsers = "SELECT COUNT(*) as c FROM users";
     
+    // NEW: Query for deadlines (Tasks assigned to user, not done, ordered by date)
+    const qDeadlines = `
+        SELECT t.name, t.due_date, p.name as project_name 
+        FROM tasks t
+        JOIN projects p ON t.project_id = p.id
+        WHERE t.assigned_to_id = ? 
+        AND t.status != 'Done' 
+        AND t.due_date IS NOT NULL
+        ORDER BY t.due_date ASC 
+        LIMIT 5
+    `;
+
     db.serialize(() => {
-        let stats = { projects: 0, myTasks: 0, users: 0 };
+        let stats = { projects: 0, myTasks: 0, users: 0, deadlines: [] };
         
         db.get(qProjects, pParams, (e, r) => {
             if(!e && r) stats.projects = r.c;
@@ -220,7 +231,12 @@ exports.getDashboardStats = (req, res) => {
                 
                 db.get(qUsers, [], (e3, r3) => {
                     if(!e3 && r3) stats.users = r3.c;
-                    res.json(stats);
+                    
+                    // NEW: Execute Deadline Query
+                    db.all(qDeadlines, [userId], (e4, rows) => {
+                        if(!e4 && rows) stats.deadlines = rows;
+                        res.json(stats);
+                    });
                 });
             });
         });

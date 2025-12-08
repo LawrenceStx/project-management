@@ -210,8 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ==========================================
 
     async function renderDashboard() {
-        // Fetch Real Stats
-        let stats = { projects: 0, myTasks: 0, users: 0 };
+        let stats = { projects: 0, myTasks: 0, users: 0, deadlines: [] }; // Init with array
         try {
             const res = await fetch('/api/dashboard/stats');
             if(res.ok) stats = await res.json();
@@ -219,6 +218,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const h = new Date().getHours();
         const greeting = h < 12 ? 'Good Morning' : h < 18 ? 'Good Afternoon' : 'Good Evening';
+
+        // Helper to generate deadline HTML
+        let deadlinesHtml = '';
+        if(stats.deadlines.length === 0) {
+            deadlinesHtml = `<div style="text-align:center; color:var(--text-muted); padding:20px;">No upcoming deadlines! 🎉</div>`;
+        } else {
+            deadlinesHtml = stats.deadlines.map(d => {
+                // Simple date formatter
+                const dateObj = new Date(d.due_date);
+                const today = new Date();
+                const diffTime = dateObj - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                
+                let timeText = d.due_date;
+                let color = 'var(--primary)'; // Green default
+                
+                if (diffDays < 0) { timeText = "Overdue"; color = "#ef4444"; }
+                else if (diffDays === 0) { timeText = "Due Today"; color = "#f59e0b"; }
+                else if (diffDays === 1) { timeText = "Tomorrow"; color = "#3b82f6"; }
+                else if (diffDays <= 7) { timeText = `In ${diffDays} days`; color = "#3b82f6"; }
+
+                return `
+                <div style="padding:12px; background:#f9fafb; border-radius:10px; border-left:4px solid ${color}; margin-bottom:10px;">
+                    <div class="flex-between">
+                        <strong>${d.name}</strong>
+                        <span style="font-size:0.75rem; color:${color}; font-weight:600;">${timeText}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:#666; margin-top:4px;">${d.project_name}</div>
+                </div>`;
+            }).join('');
+        }
 
         mainContent.innerHTML = `
             <div class="flex-between mb-2">
@@ -228,42 +258,56 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             </div>
 
-            <div class="grid-3 mt-2">
-                <div class="card stat-card fade-up" style="animation-delay: 0.1s">
+            <div class="dashboard-grid mt-2">
+                <!-- STATS CARDS -->
+                <div class="card stat-card span-1 fade-up" style="animation-delay: 0.1s; margin:0;">
                     <div class="stat-icon green"><i class="bi bi-folder-check"></i></div>
-                    <div class="stat-info">
-                        <h3>Active Projects</h3>
-                        <h1>${stats.projects}</h1>
-                        <span class="stat-change pos"><i class="bi bi-arrow-up-short"></i> System</span>
+                    <div>
+                        <h1 style="font-size:1.5rem; margin:0;">${stats.projects}</h1>
+                        <small style="color:var(--text-muted)">Active Projects</small>
                     </div>
                 </div>
-
-                <div class="card stat-card fade-up" style="animation-delay: 0.2s">
+                <div class="card stat-card span-1 fade-up" style="animation-delay: 0.2s; margin:0;">
                     <div class="stat-icon blue"><i class="bi bi-list-task"></i></div>
-                    <div class="stat-info">
-                        <h3>My Pending Tasks</h3>
-                        <h1>${stats.myTasks}</h1>
-                        <span class="stat-change" style="background:#eff6ff; color:#3b82f6">Assigned</span>
+                    <div>
+                        <h1 style="font-size:1.5rem; margin:0;">${stats.myTasks}</h1>
+                        <small style="color:var(--text-muted)">My Tasks</small>
                     </div>
                 </div>
-
-                <div class="card stat-card fade-up" style="animation-delay: 0.3s">
+                <div class="card stat-card span-1 fade-up" style="animation-delay: 0.3s; margin:0;">
                     <div class="stat-icon purple"><i class="bi bi-people-fill"></i></div>
-                    <div class="stat-info">
-                        <h3>Total Users</h3>
-                        <h1>${stats.users}</h1>
-                        <span class="stat-change" style="background:#f5f3ff; color:#8b5cf6">Active</span>
+                    <div>
+                        <h1 style="font-size:1.5rem; margin:0;">${stats.users}</h1>
+                        <small style="color:var(--text-muted)">Team Members</small>
                     </div>
                 </div>
-            </div>
-
-             <div class="card mt-2">
-                <div class="flex-between mb-2">
-                    <h3>Project Overview</h3>
-                    <i class="bi bi-three-dots"></i>
+                <div class="card stat-card span-1 fade-up" style="animation-delay: 0.4s; margin:0;">
+                    <div class="stat-icon" style="background:#fff7ed; color:#ea580c"><i class="bi bi-clock-history"></i></div>
+                    <div>
+                        <h1 style="font-size:1.5rem; margin:0;">--</h1>
+                        <small style="color:var(--text-muted)">Hours Logged</small>
+                    </div>
                 </div>
-                <div style="height: 200px; display:flex; align-items:center; justify-content:center; color: var(--text-muted); background: #f9fafb; border-radius: var(--radius-sm);">
-                    <p>Select a project to view detailed charts (Gantt).</p>
+
+                <!-- BENTO GRID ROW 2 -->
+                 <div class="card span-2 fade-up" style="margin:0; min-height: 250px; display:flex; flex-direction:column;">
+                    <div class="flex-between mb-2">
+                        <h3>Project Overview</h3>
+                        <i class="bi bi-three-dots"></i>
+                    </div>
+                    <div style="flex:1; display:flex; align-items:center; justify-content:center; color: var(--text-muted); background: #f9fafb; border-radius: var(--radius-sm);">
+                        <p><i class="bi bi-bar-chart-fill"></i> Analytics Placeholder</p>
+                    </div>
+                </div>
+
+                <!-- UPCOMING DEADLINES (Dynamic) -->
+                <div class="card span-2 fade-up" style="margin:0; min-height: 250px;">
+                    <div class="flex-between mb-2">
+                        <h3>Upcoming Deadlines</h3>
+                    </div>
+                     <div style="display:flex; flex-direction:column; max-height: 250px; overflow-y: auto;">
+                        ${deadlinesHtml}
+                    </div>
                 </div>
             </div>
         `;
@@ -360,15 +404,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const projectId = state.currentProject;
         const isAdmin = state.user.role_id === 1;
 
+        // 1. Logic to remember which option was selected
+        const isAll = state.taskFilter === 'All' ? 'selected' : '';
+        const isTodo = state.taskFilter === 'Todo' ? 'selected' : '';
+        const isIn = state.taskFilter === 'In Progress' ? 'selected' : '';
+        const isDone = state.taskFilter === 'Done' ? 'selected' : '';
+
         mainContent.innerHTML = `
             <div class="flex-between mb-2">
                 <h2>Tasks</h2>
                 <div style="display:flex; gap:10px;">
+                    <!-- 2. Applied 'selected' attributes here -->
                     <select id="task-filter" style="width: auto; margin:0;">
-                        <option value="All">All Status</option>
-                        <option value="Todo">Todo</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Done">Done</option>
+                        <option value="All" ${isAll}>All Status</option>
+                        <option value="Todo" ${isTodo}>Todo</option>
+                        <option value="In Progress" ${isIn}>In Progress</option>
+                        <option value="Done" ${isDone}>Done</option>
                     </select>
                     ${isAdmin ? `<button class="btn btn-primary" onclick="openCreateTaskModal()"><i class="bi bi-plus-lg"></i> New Task</button>` : ''}
                 </div>
@@ -389,45 +440,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             const container = document.getElementById('task-container');
             container.innerHTML = '';
 
-            if(tasks.length === 0) { container.innerHTML = 'No tasks found.'; return; }
+            if(tasks.length === 0) { container.innerHTML = '<p style="color:var(--text-muted)">No tasks found.</p>'; return; }
 
             tasks.forEach(t => {
                 const statusClass = t.status === 'In Progress' ? 'status-In' : `status-${t.status}`;
                 
-                // YouTube Embed Logic
+                // YouTube/Link logic...
                 let vid = '';
                 if(t.youtube_link) {
                     const match = t.youtube_link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
-                    if (match && match[2].length === 11) {
-                        vid = `<div class="video-container"><iframe src="//www.youtube.com/embed/${match[2]}" allowfullscreen></iframe></div>`;
-                    }
+                    if (match && match[2].length === 11) vid = `<div class="video-container"><iframe src="//www.youtube.com/embed/${match[2]}" allowfullscreen></iframe></div>`;
                 }
-                
-                // Link Logic
                 let link = t.external_link ? `<a href="${t.external_link}" target="_blank" class="task-link-btn"><i class="bi bi-link-45deg"></i> Open Link</a>` : '';
 
-                // Card HTML
                 const div = document.createElement('div');
-                div.className = `card fade-up ${statusClass}`;
+                div.className = `card task-card fade-up ${statusClass}`;
                 div.innerHTML = `
-                    <div class="flex-between">
-                        <span class="task-status-badge ${statusClass}">${t.status}</span>
-                        ${isAdmin ? `
-                            <div style="display:flex; gap:5px;">
-                                <button class="btn-icon" onclick='openEditTask(${JSON.stringify(t).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
-                                <button class="btn-icon" style="color:#ef4444" onclick="deleteTask(${t.id})"><i class="bi bi-trash"></i></button>
-                            </div>
-                        ` : ''}
+                    <div>
+                        <div class="flex-between">
+                            <span class="task-status-badge ${statusClass}">${t.status}</span>
+                            ${isAdmin ? `
+                                <div style="display:flex; gap:5px;">
+                                    <button class="btn-icon" onclick='openEditTask(${JSON.stringify(t).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
+                                    <button class="btn-icon" style="color:#ef4444" onclick="deleteTask(${t.id})"><i class="bi bi-trash"></i></button>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <h4 class="mt-2" style="font-size:1.1rem; margin-bottom:10px;">${t.name}</h4>
+                        <p class="preserve-text" style="color:var(--text-muted); font-size:0.9rem; margin-bottom:15px;">${t.description||'No description'}</p>
+                        ${link}
+                        ${vid}
                     </div>
-                    <h4 class="mt-2">${t.name}</h4>
-                    <p class="preserve-text" style="color:var(--text-muted); font-size:0.9rem;">${t.description||''}</p>
-                    ${link}
-                    ${vid}
-                    <div style="margin-top:15px; padding-top:10px; border-top:1px solid #eee;" class="flex-between">
-                        <small><i class="bi bi-calendar"></i> ${t.due_date||'--'}</small>
-                        <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
+                    
+                    <div style="margin-top:20px; padding-top:15px; border-top:1px solid rgba(0,0,0,0.05);" class="flex-between">
+                        <small style="color:var(--text-light)"><i class="bi bi-calendar"></i> ${t.due_date||'--'}</small>
+                        <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:auto; margin:0; padding:2px 8px; font-size:0.8rem; background:transparent; border:1px solid #ddd;">
                             <option value="Todo" ${t.status==='Todo'?'selected':''}>Todo</option>
-                            <option value="In Progress" ${t.status==='In Progress'?'selected':''}>Doing</option>
+                            <!-- 3. Changed Label from 'Doing' to 'In Progress' -->
+                            <option value="In Progress" ${t.status==='In Progress'?'selected':''}>In Progress</option>
                             <option value="Done" ${t.status==='Done'?'selected':''}>Done</option>
                         </select>
                     </div>
