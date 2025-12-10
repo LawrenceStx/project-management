@@ -23,13 +23,6 @@ window.closeModal = (id) => {
 document.addEventListener('DOMContentLoaded', async () => {
     const socket = io();
     
-    // Application State
-    const state = {
-        user: null,
-        projects: [],
-        currentProject: null,
-        taskFilter: 'All'
-    };
 
     // DOM Elements
     const projectSelect = document.getElementById('global-project-selector');
@@ -745,15 +738,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <h2>Settings</h2>
             </div>
 
+            <!-- BACKUP & RESTORE SECTION (Admin Only) -->
             ${state.user.role_id === 1 ? `
             <div class="card fade-up mb-2" style="max-width: 600px; border-left: 5px solid #3b82f6;">
-                <h3 class="mb-2">System Backup</h3>
-                <p style="color:var(--text-muted); margin-bottom: 15px;">Download a copy of the database (.db) file.</p>
-                <a href="/api/admin/backup" class="btn btn-outline"><i class="bi bi-download"></i> Download Database</a>
+                <h3 class="mb-2">System Database</h3>
+                
+                <!-- DOWNLOAD -->
+                <div class="flex-between" style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;">
+                    <div>
+                        <strong>Backup</strong>
+                        <p style="color:var(--text-muted); font-size:0.85rem;">Download current .db file</p>
+                    </div>
+                    <a href="/api/admin/backup" target="_blank" class="btn btn-outline">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                </div>
+
+                <!-- RESTORE -->
+                <div>
+                    <strong>Restore</strong>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:10px;">
+                        Upload a .db file to replace the current system. 
+                        <br><strong style="color:#ef4444">Warning: This will overwrite all current data and restart the server.</strong>
+                    </p>
+                    <form id="restore-form" style="display:flex; gap:10px; align-items:center;">
+                        <input type="file" id="db-file" accept=".db" required style="margin:0; background:#fff;">
+                        <button type="submit" class="btn btn-danger">Restore</button>
+                    </form>
+                </div>
             </div>
             ` : ''}
 
-            
+
             <div class="card fade-up" style="max-width: 600px;">
                 <h3 class="mb-2">Security</h3>
                 <p style="color:var(--text-muted); margin-bottom: 20px;">Manage your password and account security.</p>
@@ -790,6 +806,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                     document.getElementById('pw-form').reset(); 
                 } else { 
                     alert("Failed to update password. Please check your current password.");
+                }
+            });
+        }, 0);
+
+        setTimeout(() => {
+            // ... existing password form listener ...
+
+            // RESTORE FORM LISTENER
+            const restoreForm = document.getElementById('restore-form');
+            if(restoreForm) restoreForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if(!confirm("⚠️ DANGER: This will delete all current data and replace it with the uploaded file. Are you sure?")) return;
+
+                const formData = new FormData();
+                const fileField = document.getElementById('db-file');
+                formData.append('database', fileField.files[0]);
+
+                const btn = restoreForm.querySelector('button');
+                btn.textContent = "Restoring...";
+                btn.disabled = true;
+
+                try {
+                    const res = await fetch('/api/admin/restore', {
+                        method: 'POST',
+                        body: formData // No headers needed, fetch handles multipart
+                    });
+
+                    if(res.ok) {
+                        alert("✅ Restore Successful! The server is restarting. Please refresh the page in 5 seconds.");
+                        setTimeout(() => window.location.reload(), 5000);
+                    } else {
+                        const err = await res.json();
+                        alert("Restore Failed: " + err.error);
+                        btn.textContent = "Restore";
+                        btn.disabled = false;
+                    }
+                } catch(err) {
+                    console.error(err);
+                    alert("Connection failed.");
                 }
             });
         }, 0);

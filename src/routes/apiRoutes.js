@@ -7,6 +7,21 @@ const projectController = require('../controllers/projectController');
 const taskController = require('../controllers/taskController');
 const announcementController = require('../controllers/announcementController');
 const ganttController = require('../controllers/ganttController');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure Upload Storage
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'data/') // Save to data folder
+    },
+    filename: function (req, file, cb) {
+        // We temporarily save it as 'apex_restore.db'
+        cb(null, 'apex_restore.db') 
+    }
+});
+const upload = multer({ storage: storage });
 
 // All routes defined in this file require authentication
 router.use(isAuthenticated); 
@@ -18,6 +33,35 @@ router.route('/admin/users')
     .get(isAdmin, userController.getAllUsers)
     .post(isAdmin, userController.createUser);
 router.get('/admin/backup', isAdmin, userController.downloadBackup);
+// [ADMIN] Restore Database
+router.post('/admin/restore', isAdmin, upload.single('database'), (req, res) => {
+    const dbPath = path.join(__dirname, '../../data/apex.db');
+    const restorePath = path.join(__dirname, '../../data/apex_restore.db');
+
+    // 1. Close the current DB connection (Safe measure)
+    const db = require('../db/database');
+    db.close((err) => {
+        if (err) console.error("Error closing DB:", err);
+
+        // 2. Overwrite the old DB with the new one
+        try {
+            fs.copyFileSync(restorePath, dbPath);
+            fs.unlinkSync(restorePath); // Delete temp file
+            
+            // 3. Send success and exit process (Node managers like pm2/nodemon will restart it)
+            // If running manually, user needs to restart node.
+            res.json({ message: "Database restored! The server will now restart." });
+            
+            setTimeout(() => {
+                process.exit(1); // Force restart to reload DB connection
+            }, 1000);
+
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: "Failed to restore database file." });
+        }
+    });
+});
 
 router.route('/admin/users/:id')
     .put(isAdmin, userController.updateUser)
