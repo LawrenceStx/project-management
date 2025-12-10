@@ -52,11 +52,19 @@ app.get('/', (req, res) => {
     }
 });
 
-// Socket Connection
+let onlineUsersCount = 0;
+
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    onlineUsersCount++;
+    // Broadcast new count to all clients
+    io.emit('stats:online', { count: onlineUsersCount });
+
+    console.log('User connected. Total:', onlineUsersCount);
+
     socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+        onlineUsersCount--;
+        io.emit('stats:online', { count: onlineUsersCount });
+        console.log('User disconnected. Total:', onlineUsersCount);
     });
 });
 

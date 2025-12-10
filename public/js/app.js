@@ -2,9 +2,11 @@
 const state = {
     user: null,
     projects: [],
-    allUsers: [], // <--- ADD THIS
+    allUsers: [],
     currentProject: null,
-    taskFilter: 'All'
+    taskFilter: 'All',
+    taskSearch: '', // <--- ADD THIS
+    taskSort: 'Default' // <--- ADD THIS
 };
 
 // --- Global Modal Helpers ---
@@ -282,10 +284,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </div>
                 <div class="card stat-card span-1 fade-up" style="animation-delay: 0.4s; margin:0;">
-                    <div class="stat-icon" style="background:#fff7ed; color:#ea580c"><i class="bi bi-clock-history"></i></div>
+                    <div class="stat-icon" style="background:#ecfccb; color:#84cc16"><i class="bi bi-broadcast"></i></div>
                     <div>
-                        <h1 style="font-size:1.5rem; margin:0;">--</h1>
-                        <small style="color:var(--text-muted)">Hours Logged</small>
+                        <h1 id="online-count-display" style="font-size:1.5rem; margin:0;">-</h1>
+                        <small style="color:var(--text-muted)">Online Users</small>
                     </div>
                 </div>
 
@@ -404,39 +406,71 @@ document.addEventListener('DOMContentLoaded', async () => {
         const projectId = state.currentProject;
         const isAdmin = state.user.role_id === 1;
 
-        // 1. Logic to remember which option was selected
-        const isAll = state.taskFilter === 'All' ? 'selected' : '';
-        const isTodo = state.taskFilter === 'Todo' ? 'selected' : '';
-        const isIn = state.taskFilter === 'In Progress' ? 'selected' : '';
-        const isDone = state.taskFilter === 'Done' ? 'selected' : '';
-
+        // HTML with Search and Sort
         mainContent.innerHTML = `
-            <div class="flex-between mb-2">
+            <div class="flex-between mb-2" style="flex-wrap:wrap; gap:10px;">
                 <h2>Tasks</h2>
-                <div style="display:flex; gap:10px;">
-                    <!-- 2. Applied 'selected' attributes here -->
-                    <select id="task-filter" style="width: auto; margin:0;">
-                        <option value="All" ${isAll}>All Status</option>
-                        <option value="Todo" ${isTodo}>Todo</option>
-                        <option value="In Progress" ${isIn}>In Progress</option>
-                        <option value="Done" ${isDone}>Done</option>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <!-- SEARCH BAR -->
+                    <input type="text" id="task-search-input" placeholder="Search tasks..." 
+                           value="${state.taskSearch}" 
+                           style="margin:0; width:200px; padding:8px 12px;">
+                    
+                    <!-- FILTER STATUS -->
+                    <select id="task-filter" style="width: auto; margin:0; padding:8px 12px;">
+                        <option value="All" ${state.taskFilter === 'All' ? 'selected' : ''}>All Status</option>
+                        <option value="Todo" ${state.taskFilter === 'Todo' ? 'selected' : ''}>Todo</option>
+                        <option value="In Progress" ${state.taskFilter === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                        <option value="Done" ${state.taskFilter === 'Done' ? 'selected' : ''}>Done</option>
                     </select>
-                    ${isAdmin ? `<button class="btn btn-primary" onclick="openCreateTaskModal()"><i class="bi bi-plus-lg"></i> New Task</button>` : ''}
+
+                    <!-- SORT OPTIONS -->
+                    <select id="task-sort" style="width: auto; margin:0; padding:8px 12px;">
+                        <option value="Default" ${state.taskSort === 'Default' ? 'selected' : ''}>Sort: Todo First</option>
+                        <option value="DateAsc" ${state.taskSort === 'DateAsc' ? 'selected' : ''}>Date: Oldest</option>
+                        <option value="DateDesc" ${state.taskSort === 'DateDesc' ? 'selected' : ''}>Date: Newest</option>
+                    </select>
+
+                    ${isAdmin ? `<button class="btn btn-primary" onclick="openCreateTaskModal()"><i class="bi bi-plus-lg"></i> New</button>` : ''}
                 </div>
             </div>
             <div id="task-container" class="grid-3">Loading...</div>
         `;
 
-        document.getElementById('task-filter').addEventListener('change', (e) => { 
-            state.taskFilter = e.target.value; 
-            renderTasksPage(); 
-        });
+        // Event Listeners
+        document.getElementById('task-filter').addEventListener('change', (e) => { state.taskFilter = e.target.value; renderTasksPage(); });
+        document.getElementById('task-sort').addEventListener('change', (e) => { state.taskSort = e.target.value; renderTasksPage(); });
+        document.getElementById('task-search-input').addEventListener('keyup', (e) => { state.taskSearch = e.target.value.toLowerCase(); renderTasksPage(); });
 
         try {
             const res = await fetch(`/api/projects/${projectId}/tasks`);
             let tasks = await res.json();
+
+            // 1. Filter by Status
             if (state.taskFilter !== 'All') tasks = tasks.filter(t => t.status === state.taskFilter);
+
+            // 2. Filter by Search Term
+            if (state.taskSearch) {
+                tasks = tasks.filter(t => 
+                    t.name.toLowerCase().includes(state.taskSearch) || 
+                    (t.description && t.description.toLowerCase().includes(state.taskSearch))
+                );
+            }
+
+            // 3. Sort Logic
+            tasks.sort((a, b) => {
+                if (state.taskSort === 'Default') {
+                    // Custom order: Todo (1) -> In Progress (2) -> Done (3)
+                    const statusVal = { 'Todo': 1, 'In Progress': 2, 'Done': 3 };
+                    return statusVal[a.status] - statusVal[b.status];
+                } else if (state.taskSort === 'DateAsc') {
+                    return new Date(a.due_date) - new Date(b.due_date);
+                } else if (state.taskSort === 'DateDesc') {
+                    return new Date(b.due_date) - new Date(a.due_date);
+                }
+            });
             
+            // Rendering (Keep existing rendering logic below)
             const container = document.getElementById('task-container');
             container.innerHTML = '';
 
@@ -445,7 +479,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             tasks.forEach(t => {
                 const statusClass = t.status === 'In Progress' ? 'status-In' : `status-${t.status}`;
                 
-                // YouTube/Link logic...
                 let vid = '';
                 if(t.youtube_link) {
                     const match = t.youtube_link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
@@ -471,12 +504,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ${link}
                         ${vid}
                     </div>
-                    
                     <div style="margin-top:20px; padding-top:15px; border-top:1px solid rgba(0,0,0,0.05);" class="flex-between">
                         <small style="color:var(--text-light)"><i class="bi bi-calendar"></i> ${t.due_date||'--'}</small>
                         <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:auto; margin:0; padding:2px 8px; font-size:0.8rem; background:transparent; border:1px solid #ddd;">
                             <option value="Todo" ${t.status==='Todo'?'selected':''}>Todo</option>
-                            <!-- 3. Changed Label from 'Doing' to 'In Progress' -->
                             <option value="In Progress" ${t.status==='In Progress'?'selected':''}>In Progress</option>
                             <option value="Done" ${t.status==='Done'?'selected':''}>Done</option>
                         </select>
@@ -607,14 +638,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 const div = document.createElement('div');
                 div.className = 'card text-center fade-up';
+                // UPDATE: Added stats-text showing the count
                 div.innerHTML = `
                     <img src="https://ui-avatars.com/api/?name=${m.username}&background=random" style="width:50px; height:50px; border-radius:50%; margin-bottom:10px;">
                     <h3>${m.username}</h3>
                     <span class="task-status-badge status-Todo">${m.role_in_project}</span>
-                    <div style="margin-top:15px; background:#eee; height:5px; border-radius:3px;">
+                    
+                    <div class="stats-text" style="margin-top:15px; font-weight:600; color:var(--text-main);">
+                        ${done} / ${total} Tasks Done
+                    </div>
+
+                    <div style="margin-top:5px; background:#eee; height:5px; border-radius:3px;">
                         <div style="width:${rate}%; background:var(--primary); height:100%;"></div>
                     </div>
-                    <small>Tasks Completed: ${rate}%</small>
+                    <small style="color:var(--text-muted)">${rate}% Completed</small>
                 `;
                 container.appendChild(div);
             });
@@ -707,6 +744,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="flex-between mb-2">
                 <h2>Settings</h2>
             </div>
+
+            ${state.user.role_id === 1 ? `
+            <div class="card fade-up mb-2" style="max-width: 600px; border-left: 5px solid #3b82f6;">
+                <h3 class="mb-2">System Backup</h3>
+                <p style="color:var(--text-muted); margin-bottom: 15px;">Download a copy of the database (.db) file.</p>
+                <a href="/api/admin/backup" class="btn btn-outline"><i class="bi bi-download"></i> Download Database</a>
+            </div>
+            ` : ''}
+
+            
             <div class="card fade-up" style="max-width: 600px;">
                 <h3 class="mb-2">Security</h3>
                 <p style="color:var(--text-muted); margin-bottom: 20px;">Manage your password and account security.</p>
@@ -914,6 +961,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     socket.on('announcement:delete', (data) => {
         const el = document.getElementById(`ann-${data.id}`);
         if(el) el.remove();
+    });
+
+    socket.on('stats:online', (data) => {
+        const el = document.getElementById('online-count-display');
+        if(el) el.textContent = data.count;
     });
 
     // ==========================================

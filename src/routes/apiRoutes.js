@@ -17,6 +17,7 @@ router.use(isAuthenticated);
 router.route('/admin/users')
     .get(isAdmin, userController.getAllUsers)
     .post(isAdmin, userController.createUser);
+router.get('/admin/backup', isAdmin, userController.downloadBackup);
 
 router.route('/admin/users/:id')
     .put(isAdmin, userController.updateUser)
@@ -55,7 +56,7 @@ router.get('/announcements', announcementController.getAnnouncements);
 router.post('/announcements', isAdmin, announcementController.createAnnouncement);
 router.delete('/announcements/:id', isAdmin, announcementController.deleteAnnouncement);
 
-// ADD THIS LINE:
+
 router.delete('/tasks/:id', taskController.deleteTask);
 router.get('/projects/:projectId/tasks', taskController.getProjectTasks);
 router.post('/tasks', taskController.createTask);

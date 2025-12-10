@@ -242,3 +242,15 @@ exports.getDashboardStats = (req, res) => {
         });
     });
 };
+
+// [ADMIN] Download Database Backup
+exports.downloadBackup = (req, res) => {
+    const path = require('path');
+    const dbPath = path.join(__dirname, '../../data/apex.db');
+    res.download(dbPath, `apex_backup_${new Date().toISOString().split('T')[0]}.db`, (err) => {
+        if (err) {
+            console.error("Backup error:", err);
+            res.status(500).json({ error: "Could not download database." });
+        }
+    });
+};
