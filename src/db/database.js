@@ -121,6 +121,7 @@ const initDb = () => {
 
         addColumn('tasks', 'external_link', 'TEXT');
         addColumn('tasks', 'youtube_link', 'TEXT');
+        addColumn('project_logs', 'log_date', 'DATE');
         // ============================================================
 
         

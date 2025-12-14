@@ -201,15 +201,24 @@ exports.changePassword = async (req, res) => {
 exports.getDashboardStats = (req, res) => {
     const userId = req.session.user.id;
     const roleId = req.session.user.role_id;
-    const projectId = req.query.projectId; // <--- Capture Query Param
+    const projectId = req.query.projectId;
 
-    // 1. Base Counts
-    const qProjects = roleId === 1 ? "SELECT COUNT(*) as c FROM projects" : "SELECT COUNT(*) as c FROM project_members WHERE user_id = ?";
+    // 1. Projects Count Query
+    const qProjects = roleId === 1 
+        ? "SELECT COUNT(*) as c FROM projects" 
+        : "SELECT COUNT(*) as c FROM project_members WHERE user_id = ?";
     const pParams = roleId === 1 ? [] : [userId];
+
+    // 2. My Tasks Count Query
     const qTasks = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done'";
+    
+    // 3. Overdue Tasks Count Query
+    const qOverdue = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done' AND due_date < date('now')";
+
+    // 4. Users Count Query
     const qUsers = "SELECT COUNT(*) as c FROM users";
     
-    // 2. Deadlines (Upcoming 7 days)
+    // 5. Deadlines Query (Next 7 Days)
     const qDeadlines = `
         SELECT t.name, t.due_date, p.name as project_name 
         FROM tasks t
@@ -221,8 +230,7 @@ exports.getDashboardStats = (req, res) => {
         ORDER BY t.due_date ASC
     `;
 
-    // 3. NEW: Active Events (Phases)
-    // Find events where TODAY is between Start and End
+    // 6. Active Events Query (Dynamic based on Project selection)
     let qEvents = `
         SELECT pe.name, pe.color, p.name as project_name, pe.end_date
         FROM project_events pe
@@ -231,23 +239,20 @@ exports.getDashboardStats = (req, res) => {
     let eParams = [];
 
     if (projectId && projectId !== 'null' && projectId !== 'undefined') {
-        // Specific Project Selected
         qEvents += ` WHERE pe.project_id = ? `;
         eParams.push(projectId);
     } else if (roleId !== 1) {
-        // Member (All their projects)
         qEvents += ` JOIN project_members pm ON p.id = pm.project_id WHERE pm.user_id = ? `;
         eParams.push(userId);
     } else {
-        // Admin (All projects)
         qEvents += ` WHERE 1=1 `;
     }
     
-    // Add Date Condition (SQLite)
     qEvents += ` AND date('now') BETWEEN pe.start_date AND pe.end_date ORDER BY pe.end_date ASC`;
 
+    // Execution Chain
     db.serialize(() => {
-        let stats = { projects: 0, myTasks: 0, users: 0, deadlines: [], activeEvents: [] };
+        let stats = { projects: 0, myTasks: 0, overdue: 0, users: 0, deadlines: [], activeEvents: [] };
         
         db.get(qProjects, pParams, (e, r) => {
             if(!e && r) stats.projects = r.c;
@@ -255,16 +260,20 @@ exports.getDashboardStats = (req, res) => {
             db.get(qTasks, [userId], (e2, r2) => {
                 if(!e2 && r2) stats.myTasks = r2.c;
                 
-                db.get(qUsers, [], (e3, r3) => {
-                    if(!e3 && r3) stats.users = r3.c;
-                    
-                    db.all(qDeadlines, [userId], (e4, rows) => {
-                        if(!e4 && rows) stats.deadlines = rows;
+                // Get Overdue Count
+                db.get(qOverdue, [userId], (eOver, rOver) => {
+                    if(!eOver && rOver) stats.overdue = rOver.c;
 
-                        // Execute Active Events Query
-                        db.all(qEvents, eParams, (e5, events) => {
-                            if(!e5 && events) stats.activeEvents = events;
-                            res.json(stats);
+                    db.get(qUsers, [], (e3, r3) => {
+                        if(!e3 && r3) stats.users = r3.c;
+                        
+                        db.all(qDeadlines, [userId], (e4, rows) => {
+                            if(!e4 && rows) stats.deadlines = rows;
+
+                            db.all(qEvents, eParams, (e5, events) => {
+                                if(!e5 && events) stats.activeEvents = events;
+                                res.json(stats);
+                            });
                         });
                     });
                 });

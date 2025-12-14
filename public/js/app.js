@@ -274,64 +274,68 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         mainContent.innerHTML = `
-            <div class="flex-between mb-2">
+        <div class="flex-between mb-2">
+            <div>
+                <h2>${greeting}, ${state.user.username.split(' ')[0]}</h2>
+                <p style="color:var(--text-muted)">Here's what's happening today.</p>
+            </div>
+        </div>
+
+        <div class="dashboard-grid mt-2">
+            <!-- STATS CARDS -->
+            <div class="card stat-card span-1 fade-up" style="animation-delay: 0.1s; margin:0;">
+                <div class="stat-icon green"><i class="bi bi-folder-check"></i></div>
                 <div>
-                    <h2>${greeting}, ${state.user.username.split(' ')[0]}</h2>
-                    <p style="color:var(--text-muted)">Here's what's happening today.</p>
+                    <h1 style="font-size:1.5rem; margin:0;">${stats.projects}</h1>
+                    <small style="color:var(--text-muted)">Active Projects</small>
+                </div>
+            </div>
+            
+            <div class="card stat-card span-1 fade-up" style="animation-delay: 0.2s; margin:0;">
+                <div class="stat-icon blue"><i class="bi bi-list-task"></i></div>
+                <div>
+                    <h1 style="font-size:1.5rem; margin:0;">${stats.myTasks}</h1>
+                    <small style="color:var(--text-muted)">My Tasks</small>
                 </div>
             </div>
 
-            <div class="dashboard-grid mt-2">
-                <!-- STATS CARDS -->
-                <div class="card stat-card span-1 fade-up" style="animation-delay: 0.1s; margin:0;">
-                    <div class="stat-icon green"><i class="bi bi-folder-check"></i></div>
-                    <div>
-                        <h1 style="font-size:1.5rem; margin:0;">${stats.projects}</h1>
-                        <small style="color:var(--text-muted)">Active Projects</small>
-                    </div>
-                </div>
-                <div class="card stat-card span-1 fade-up" style="animation-delay: 0.2s; margin:0;">
-                    <div class="stat-icon blue"><i class="bi bi-list-task"></i></div>
-                    <div>
-                        <h1 style="font-size:1.5rem; margin:0;">${stats.myTasks}</h1>
-                        <small style="color:var(--text-muted)">My Tasks</small>
-                    </div>
-                </div>
-                <div class="card stat-card span-1 fade-up" style="animation-delay: 0.3s; margin:0;">
-                    <div class="stat-icon purple"><i class="bi bi-people-fill"></i></div>
-                    <div>
-                        <h1 style="font-size:1.5rem; margin:0;">${stats.users}</h1>
-                        <small style="color:var(--text-muted)">Team Members</small>
-                    </div>
-                </div>
-                <div class="card stat-card span-1 fade-up" style="animation-delay: 0.4s; margin:0;">
-                    <div class="stat-icon" style="background:#ecfccb; color:#84cc16"><i class="bi bi-broadcast"></i></div>
-                    <div>
-                        <h1 id="online-count-display" style="font-size:1.5rem; margin:0;">-</h1>
-                        <small style="color:var(--text-muted)">Online Users</small>
-                    </div>
-                </div>
-
-                <!-- NEW: ACTIVE PHASE CARD -->
-                 <div class="card span-2 fade-up" style="margin:0; min-height: 250px; display:flex; flex-direction:column;">
-                    <div class="flex-between mb-2">
-                        <h3>Current Active Phase</h3>
-                        <i class="bi bi-activity" style="color:var(--primary);"></i>
-                    </div>
-                    ${eventsHtml}
-                </div>
-
-                <!-- UPCOMING DEADLINES -->
-                <div class="card span-2 fade-up" style="margin:0; min-height: 250px;">
-                    <div class="flex-between mb-2">
-                        <h3>Upcoming Deadlines</h3>
-                    </div>
-                     <div style="display:flex; flex-direction:column; max-height: 250px; overflow-y: auto;">
-                        ${deadlinesHtml}
-                    </div>
+            <!-- NEW: OVERDUE KPI -->
+            <div class="card stat-card span-1 fade-up" style="animation-delay: 0.3s; margin:0;">
+                <div class="stat-icon" style="background:#fee2e2; color:#ef4444;"><i class="bi bi-exclamation-octagon"></i></div>
+                <div>
+                    <h1 style="font-size:1.5rem; margin:0; color:#ef4444;">${stats.overdue}</h1>
+                    <small style="color:var(--text-muted)">Overdue Tasks</small>
                 </div>
             </div>
-        `;
+
+            <div class="card stat-card span-1 fade-up" style="animation-delay: 0.4s; margin:0;">
+                <div class="stat-icon purple"><i class="bi bi-people-fill"></i></div>
+                <div>
+                    <h1 style="font-size:1.5rem; margin:0;">${stats.users}</h1>
+                    <small style="color:var(--text-muted)">Team Members</small>
+                </div>
+            </div>
+
+            <!-- Active Phase Card -->
+             <div class="card span-2 fade-up" style="margin:0; min-height: 250px; display:flex; flex-direction:column;">
+                <div class="flex-between mb-2">
+                    <h3>Current Active Phase</h3>
+                    <i class="bi bi-activity" style="color:var(--primary);"></i>
+                </div>
+                ${eventsHtml}
+            </div>
+
+            <!-- Upcoming Deadlines -->
+            <div class="card span-2 fade-up" style="margin:0; min-height: 250px;">
+                <div class="flex-between mb-2">
+                    <h3>Upcoming Deadlines</h3>
+                </div>
+                 <div style="display:flex; flex-direction:column; max-height: 250px; overflow-y: auto;">
+                    ${deadlinesHtml}
+                </div>
+            </div>
+        </div>
+    `;
     }
 
     async function renderProjectsList() {
@@ -425,13 +429,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const projectId = state.currentProject;
         const isAdmin = state.user.role_id === 1;
 
-        // 1. UPDATE HTML: Added a proper Search Button and removed onkeyup from input
         mainContent.innerHTML = `
             <div class="flex-between mb-2" style="flex-wrap:wrap; gap:10px;">
                 <h2>Tasks</h2>
                 <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                     
-                    <!-- SEARCH GROUP -->
                     <div style="display:flex; gap:5px;">
                         <input type="text" id="task-search-input" placeholder="Search task or member..." 
                                value="${state.taskSearch}" 
@@ -441,15 +443,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </button>
                     </div>
                     
-                    <!-- FILTER STATUS -->
                     <select id="task-filter" style="width: auto; margin:0; padding:8px 12px;">
                         <option value="All" ${state.taskFilter === 'All' ? 'selected' : ''}>All Status</option>
                         <option value="Todo" ${state.taskFilter === 'Todo' ? 'selected' : ''}>Todo</option>
                         <option value="In Progress" ${state.taskFilter === 'In Progress' ? 'selected' : ''}>In Progress</option>
                         <option value="Done" ${state.taskFilter === 'Done' ? 'selected' : ''}>Done</option>
+                        <option value="Overdue" ${state.taskFilter === 'Overdue' ? 'selected' : ''} style="color:red; font-weight:bold;">⚠ Overdue</option>
                     </select>
 
-                    <!-- SORT OPTIONS -->
                     <select id="task-sort" style="width: auto; margin:0; padding:8px 12px;">
                         <option value="Default" ${state.taskSort === 'Default' ? 'selected' : ''}>Sort: Todo First</option>
                         <option value="DateAsc" ${state.taskSort === 'DateAsc' ? 'selected' : ''}>Date: Oldest</option>
@@ -462,41 +463,43 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div id="task-container" class="grid-3">Loading...</div>
         `;
 
-        // Event Listeners
         document.getElementById('task-filter').addEventListener('change', (e) => { state.taskFilter = e.target.value; renderTasksPage(); });
         document.getElementById('task-sort').addEventListener('change', (e) => { state.taskSort = e.target.value; renderTasksPage(); });
-       
+        
         const searchInput = document.getElementById('task-search-input');
         const searchBtn = document.getElementById('btn-do-search');
-
-        const performSearch = () => {
-            state.taskSearch = searchInput.value.toLowerCase();
-            renderTasksPage(); // Re-render with new filter
-        };
-
+        const performSearch = () => { state.taskSearch = searchInput.value.toLowerCase(); renderTasksPage(); };
         searchBtn.addEventListener('click', performSearch);
-        searchInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') performSearch();
-        });
+        searchInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') performSearch(); });
 
         try {
             const res = await fetch(`/api/projects/${projectId}/tasks`);
             let tasks = await res.json();
+            const today = new Date();
+            today.setHours(0,0,0,0); // Normalize today
 
-            // Filter by Status
-            if (state.taskFilter !== 'All') tasks = tasks.filter(t => t.status === state.taskFilter);
+            // 1. Filter Logic
+            if (state.taskFilter === 'Overdue') {
+                tasks = tasks.filter(t => {
+                    if(t.status === 'Done') return false;
+                    const due = new Date(t.due_date);
+                    return due < today;
+                });
+            } else if (state.taskFilter !== 'All') {
+                tasks = tasks.filter(t => t.status === state.taskFilter);
+            }
 
-            // 4. FILTER UPDATE: Search by Task Name, Description, OR Assigned Member Name
+            // 2. Search Logic
             if (state.taskSearch) {
                 const term = state.taskSearch;
                 tasks = tasks.filter(t => 
                     t.name.toLowerCase().includes(term) || 
                     (t.description && t.description.toLowerCase().includes(term)) ||
-                    (t.assigned_to_name && t.assigned_to_name.toLowerCase().includes(term)) // <-- Added Member Search
+                    (t.assigned_to_name && t.assigned_to_name.toLowerCase().includes(term))
                 );
             }
 
-            // Sort Logic
+            // 3. Sort Logic
             tasks.sort((a, b) => {
                 if (state.taskSort === 'Default') {
                     const statusVal = { 'Todo': 1, 'In Progress': 2, 'Done': 3 };
@@ -508,21 +511,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
             
-            // Rendering
             const container = document.getElementById('task-container');
             container.innerHTML = '';
 
-            if(tasks.length === 0) { 
-                container.innerHTML = `
-                <div class="span-4 text-center" style="padding:40px; color:var(--text-muted)">
-                    <i class="bi bi-search" style="font-size:2rem; display:block; margin-bottom:10px;"></i>
-                    No tasks found matching your criteria.
-                </div>`; 
-                return; 
-            }
+            if(tasks.length === 0) { container.innerHTML = '<p class="span-4 text-center">No tasks found.</p>'; return; }
 
             tasks.forEach(t => {
-                const statusClass = t.status === 'In Progress' ? 'status-In' : `status-${t.status}`;
+                // Determine Overdue Status
+                const due = new Date(t.due_date);
+                const isOverdue = t.status !== 'Done' && due < today;
+                
+                // Add 'overdue' class if applicable, else standard status class
+                const cardClass = isOverdue ? 'overdue' : (t.status === 'In Progress' ? 'status-In' : `status-${t.status}`);
                 
                 let vid = '';
                 if(t.youtube_link) {
@@ -530,36 +530,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (match && match[2].length === 11) vid = `<div class="video-container"><iframe src="//www.youtube.com/embed/${match[2]}" allowfullscreen></iframe></div>`;
                 }
                 let link = t.external_link ? `<a href="${t.external_link}" target="_blank" class="task-link-btn"><i class="bi bi-link-45deg"></i> Open Link</a>` : '';
-
-                // NEW: Show Assigned User Avatar/Name
-                const assigneeHtml = t.assigned_to_name 
-                    ? `<div style="display:flex; align-items:center; gap:5px; margin-top:10px; font-size:0.85rem; color:#666;">
-                         <i class="bi bi-person-circle"></i> ${t.assigned_to_name}
-                       </div>` 
-                    : `<div style="margin-top:10px; font-size:0.85rem; color:#999; font-style:italic;">Unassigned</div>`;
+                const assigneeHtml = t.assigned_to_name ? `<div style="display:flex; align-items:center; gap:5px; margin-top:10px; font-size:0.85rem; color:#666;"><i class="bi bi-person-circle"></i> ${t.assigned_to_name}</div>` : `<div style="margin-top:10px; font-size:0.85rem; color:#999;">Unassigned</div>`;
 
                 const div = document.createElement('div');
-                div.className = `card task-card fade-up ${statusClass}`;
+                div.className = `card task-card fade-up ${cardClass}`;
                 div.innerHTML = `
                     <div>
                         <div class="flex-between">
-                            <span class="task-status-badge ${statusClass}">${t.status}</span>
-                            ${isAdmin ? `
-                                <div style="display:flex; gap:5px;">
-                                    <button class="btn-icon" onclick='openEditTask(${JSON.stringify(t).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
-                                    <button class="btn-icon" style="color:#ef4444" onclick="deleteTask(${t.id})"><i class="bi bi-trash"></i></button>
-                                </div>
-                            ` : ''}
+                            <span class="task-status-badge ${cardClass}">${isOverdue ? 'Overdue' : t.status}</span>
+                            ${isAdmin ? `<div style="display:flex; gap:5px;"><button class="btn-icon" onclick='openEditTask(${JSON.stringify(t).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button><button class="btn-icon" style="color:#ef4444" onclick="deleteTask(${t.id})"><i class="bi bi-trash"></i></button></div>` : ''}
                         </div>
-                        <h4 class="mt-2" style="font-size:1.1rem; margin-bottom:10px;">${t.name}</h4>
+                        <h4 class="mt-2 ${isOverdue ? 'overdue-text' : ''}" style="font-size:1.1rem; margin-bottom:10px;">${t.name}</h4>
                         <p class="preserve-text" style="color:var(--text-muted); font-size:0.9rem; margin-bottom:15px;">${t.description||'No description'}</p>
                         ${link}
                         ${vid}
                         ${assigneeHtml}
                     </div>
                     <div style="margin-top:20px; padding-top:15px; border-top:1px solid rgba(0,0,0,0.05);" class="flex-between">
-                        <small style="color:var(--text-light)"><i class="bi bi-calendar"></i> ${t.due_date||'--'}</small>
-                        <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:auto; margin:0; padding:2px 8px; font-size:0.8rem; background:transparent; border:1px solid #ddd;">
+                        <small style="color:${isOverdue ? '#ef4444' : 'var(--text-light)'}; font-weight:${isOverdue?700:400}">
+                            <i class="bi bi-calendar"></i> ${t.due_date||'--'}
+                        </small>
+                        <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:auto; margin:0; padding:2px 8px; font-size:0.8rem;">
                             <option value="Todo" ${t.status==='Todo'?'selected':''}>Todo</option>
                             <option value="In Progress" ${t.status==='In Progress'?'selected':''}>In Progress</option>
                             <option value="Done" ${t.status==='Done'?'selected':''}>Done</option>
@@ -1156,9 +1147,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             logs.forEach(log => {
-                // Reuse the announcement text formatter for logs
                 const formattedContent = formatAnnouncementText(log.content); 
                 const isMyLog = state.user.role_id === 1 || state.user.username === log.author;
+                
+                // Display log_date or created_at
+                const displayDate = log.log_date ? new Date(log.log_date).toDateString() : new Date(log.created_at).toDateString();
 
                 const div = document.createElement('div');
                 div.className = 'card fade-up';
@@ -1166,9 +1159,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 div.innerHTML = `
                     <div class="flex-between" style="margin-bottom:10px; border-bottom:1px dashed #eee; padding-bottom:10px;">
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <i class="bi bi-person-circle" style="color:var(--text-light)"></i>
-                            <strong>${log.author}</strong>
-                            <small style="color:var(--text-muted)">${new Date(log.created_at).toLocaleString()}</small>
+                            <div style="background:var(--accent); color:white; padding:5px 10px; border-radius:5px; font-weight:bold; font-size:0.8rem;">
+                                ${displayDate}
+                            </div>
+                            <strong style="font-size:1rem;">${log.author}</strong>
                         </div>
                         ${isMyLog ? `
                             <div style="display:flex; gap:5px;">
@@ -1189,33 +1183,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.openLogModal = () => {
         document.getElementById('log-form').reset();
         document.getElementById('log-id').value = '';
+        // Set Today
+        document.getElementById('log-date').value = new Date().toISOString().split('T')[0];
         openModal('logModal');
     };
 
+    // 2. Update openEditLog to set existing date
     window.openEditLog = (log) => {
         document.getElementById('log-id').value = log.id;
         document.getElementById('log-content').value = log.content;
+        // Use log_date if exists, else fallback to created_at
+        const dateVal = log.log_date ? log.log_date : new Date(log.created_at).toISOString().split('T')[0];
+        document.getElementById('log-date').value = dateVal;
         openModal('logModal');
     };
 
-    window.deleteLog = async (id) => {
-        if(!confirm("Delete this log entry?")) return;
-        await fetch(`/api/logs/${id}`, { method: 'DELETE' });
-    };
-
-    // --- INSERT FORM LISTENER inside DOMContentLoaded ---
+    // 3. Update Form Submitter
     const logForm = document.getElementById('log-form');
     if(logForm) logForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('log-id').value;
         const content = document.getElementById('log-content').value;
+        const log_date = document.getElementById('log-date').value; // Capture Date
+
         const url = id ? `/api/logs/${id}` : '/api/logs';
         const method = id ? 'PUT' : 'POST';
 
         await fetch(url, {
             method: method,
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ project_id: state.currentProject, content })
+            body: JSON.stringify({ project_id: state.currentProject, content, log_date })
         });
         closeModal('logModal');
     });

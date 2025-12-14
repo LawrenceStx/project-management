@@ -347,8 +347,14 @@
         </div>
         <form id="log-form">
             <input type="hidden" id="log-id">
-            <label>What did you do today?</label>
+            
+            <!-- NEW: Date Input -->
+            <label>Date</label>
+            <input type="date" id="log-date" required>
+
+            <label>What did you do?</label>
             <textarea id="log-content" style="min-height: 200px;" placeholder="• Fixed login bug&#10;• Updated database schema..." required></textarea>
+            
             <div class="flex-between mt-2">
                 <button type="button" class="btn btn-outline" onclick="closeModal('logModal')">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Log</button>

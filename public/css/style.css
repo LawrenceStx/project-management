@@ -278,3 +278,19 @@ input, select, textarea {
     margin-top: 10px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
+
+.task-card.overdue {
+    border-left: 5px solid #ef4444; /* Red Border */
+    background-color: #fef2f2;      /* Light Red Tint */
+}
+
+.task-card.overdue .task-status-badge {
+    background: #fee2e2;
+    color: #ef4444;
+    border-color: #ef4444;
+}
+
+.overdue-text {
+    color: #ef4444;
+    font-weight: 700;
+}
