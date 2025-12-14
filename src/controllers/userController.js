@@ -203,34 +203,49 @@ exports.getDashboardStats = (req, res) => {
     const roleId = req.session.user.role_id;
     const projectId = req.query.projectId;
 
-    // 1. Projects Count Query
+    // --- QUERY BUILDERS ---
+
+    // 1. Projects Count
+    // Admin: All Projects. Member: Projects they are in.
     const qProjects = roleId === 1 
         ? "SELECT COUNT(*) as c FROM projects" 
         : "SELECT COUNT(*) as c FROM project_members WHERE user_id = ?";
     const pParams = roleId === 1 ? [] : [userId];
 
-    // 2. My Tasks Count Query
-    const qTasks = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done'";
+    // 2. My Tasks Count (Always Personal)
+    const qMyTasks = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done'";
     
-    // 3. Overdue Tasks Count Query
-    const qOverdue = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done' AND due_date < date('now')";
+    // 3. Context Filter for Overdue & Deadlines
+    // IF Admin: See ALL tasks (filtered by project if selected).
+    // IF Member: See ONLY assigned tasks.
+    let contextWhere = "t.status != 'Done'";
+    let contextParams = [];
 
-    // 4. Users Count Query
-    const qUsers = "SELECT COUNT(*) as c FROM users";
-    
-    // 5. Deadlines Query (Next 7 Days)
+    if (projectId && projectId !== 'null' && projectId !== 'undefined') {
+        contextWhere += " AND t.project_id = ?";
+        contextParams.push(projectId);
+    }
+
+    if (roleId === 2) { // Member restriction
+        contextWhere += " AND t.assigned_to_id = ?";
+        contextParams.push(userId);
+    }
+
+    // 4. Overdue Query (Using Localtime)
+    const qOverdue = `SELECT COUNT(*) as c FROM tasks t WHERE ${contextWhere} AND t.due_date < date('now', 'localtime')`;
+
+    // 5. Deadlines Query (Next 7 Days, Localtime)
     const qDeadlines = `
         SELECT t.name, t.due_date, p.name as project_name 
         FROM tasks t
         JOIN projects p ON t.project_id = p.id
-        WHERE t.assigned_to_id = ? 
-        AND t.status != 'Done' 
-        AND t.due_date >= date('now') 
-        AND t.due_date <= date('now', '+7 days')
+        WHERE ${contextWhere} 
+        AND t.due_date >= date('now', 'localtime') 
+        AND t.due_date <= date('now', '+7 days', 'localtime')
         ORDER BY t.due_date ASC
     `;
 
-    // 6. Active Events Query (Dynamic based on Project selection)
+    // 6. Active Events (Gantt Phases)
     let qEvents = `
         SELECT pe.name, pe.color, p.name as project_name, pe.end_date
         FROM project_events pe
@@ -247,27 +262,30 @@ exports.getDashboardStats = (req, res) => {
     } else {
         qEvents += ` WHERE 1=1 `;
     }
-    
-    qEvents += ` AND date('now') BETWEEN pe.start_date AND pe.end_date ORDER BY pe.end_date ASC`;
+    // Check if TODAY is between Start and End (Localtime)
+    qEvents += ` AND date('now', 'localtime') BETWEEN pe.start_date AND pe.end_date ORDER BY pe.end_date ASC`;
 
-    // Execution Chain
+    // 7. Users Count
+    const qUsers = "SELECT COUNT(*) as c FROM users";
+
+    // --- EXECUTION ---
     db.serialize(() => {
         let stats = { projects: 0, myTasks: 0, overdue: 0, users: 0, deadlines: [], activeEvents: [] };
         
         db.get(qProjects, pParams, (e, r) => {
             if(!e && r) stats.projects = r.c;
             
-            db.get(qTasks, [userId], (e2, r2) => {
+            db.get(qMyTasks, [userId], (e2, r2) => {
                 if(!e2 && r2) stats.myTasks = r2.c;
                 
-                // Get Overdue Count
-                db.get(qOverdue, [userId], (eOver, rOver) => {
+                // Use spread (...) to pass dynamic params
+                db.get(qOverdue, contextParams, (eOver, rOver) => {
                     if(!eOver && rOver) stats.overdue = rOver.c;
 
                     db.get(qUsers, [], (e3, r3) => {
                         if(!e3 && r3) stats.users = r3.c;
                         
-                        db.all(qDeadlines, [userId], (e4, rows) => {
+                        db.all(qDeadlines, contextParams, (e4, rows) => {
                             if(!e4 && rows) stats.deadlines = rows;
 
                             db.all(qEvents, eParams, (e5, events) => {
