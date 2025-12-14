@@ -41,6 +41,7 @@
             <li class="nav-item"><a href="#" class="nav-link" data-page="members"><i class="bi bi-people"></i> Team</a></li>
             <li class="nav-item"><a href="#" class="nav-link" data-page="projects"><i class="bi bi-folder"></i> Projects</a></li>
             <li class="nav-item"><a href="#" class="nav-link" data-page="announcements"><i class="bi bi-megaphone"></i> News</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" data-page="logs"><i class="bi bi-journal-text"></i> Logs</a></li>
         </nav>
 
         <label class="menu-label" style="margin-top: 20px;">ADMIN</label>
@@ -288,6 +289,11 @@
             <input type="hidden" id="ev-id">
             <label>Event Name</label>
             <input type="text" id="ev-name" required>
+            
+            <!-- NEW: Description Field -->
+            <label>Description / Context</label>
+            <textarea id="ev-desc" style="min-height: 80px;" placeholder="Add event context..."></textarea>
+            
             <div class="grid-2">
                 <div><label>Start</label><input type="date" id="ev-start" required></div>
                 <div><label>End</label><input type="date" id="ev-end" required></div>
@@ -328,6 +334,25 @@
             
             <button type="submit" class="btn btn-primary mt-2">Save Changes</button>
             <button type="button" class="btn btn-outline mt-2" onclick="closeModal('editUserModal')">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<!-- Log Modal -->
+<div id="logModal" class="modal-overlay">
+    <div class="modal-box fade-up">
+        <div class="flex-between mb-2">
+            <h3>Entry Log</h3>
+            <button class="btn-icon" onclick="closeModal('logModal')"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <form id="log-form">
+            <input type="hidden" id="log-id">
+            <label>What did you do today?</label>
+            <textarea id="log-content" style="min-height: 200px;" placeholder="• Fixed login bug&#10;• Updated database schema..." required></textarea>
+            <div class="flex-between mt-2">
+                <button type="button" class="btn btn-outline" onclick="closeModal('logModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Log</button>
+            </div>
         </form>
     </div>
 </div>

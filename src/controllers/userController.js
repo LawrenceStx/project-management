@@ -208,16 +208,17 @@ exports.getDashboardStats = (req, res) => {
     const qTasks = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done'";
     const qUsers = "SELECT COUNT(*) as c FROM users";
     
-    // NEW: Query for deadlines (Tasks assigned to user, not done, ordered by date)
+    // FIXED: Query for deadlines (Now + 7 days)
+    // We use date('now') to get today and date('now', '+7 days') for next week
     const qDeadlines = `
         SELECT t.name, t.due_date, p.name as project_name 
         FROM tasks t
         JOIN projects p ON t.project_id = p.id
         WHERE t.assigned_to_id = ? 
         AND t.status != 'Done' 
-        AND t.due_date IS NOT NULL
-        ORDER BY t.due_date ASC 
-        LIMIT 5
+        AND t.due_date >= date('now') 
+        AND t.due_date <= date('now', '+7 days')
+        ORDER BY t.due_date ASC
     `;
 
     db.serialize(() => {
@@ -232,7 +233,7 @@ exports.getDashboardStats = (req, res) => {
                 db.get(qUsers, [], (e3, r3) => {
                     if(!e3 && r3) stats.users = r3.c;
                     
-                    // NEW: Execute Deadline Query
+                    // Execute Deadline Query
                     db.all(qDeadlines, [userId], (e4, rows) => {
                         if(!e4 && rows) stats.deadlines = rows;
                         res.json(stats);

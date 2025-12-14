@@ -7,6 +7,7 @@ const projectController = require('../controllers/projectController');
 const taskController = require('../controllers/taskController');
 const announcementController = require('../controllers/announcementController');
 const ganttController = require('../controllers/ganttController');
+const logController = require('../controllers/logController');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -113,5 +114,10 @@ router.get('/projects/:projectId/events', ganttController.getEvents);
 router.post('/events', isAdmin, ganttController.createEvent);
 router.put('/events/:id', isAdmin, ganttController.updateEvent);
 router.delete('/events/:id', isAdmin, ganttController.deleteEvent);
+
+router.get('/projects/:projectId/logs', logController.getLogs);
+router.post('/logs', logController.createLog);
+router.put('/logs/:id', logController.updateLog);
+router.delete('/logs/:id', logController.deleteLog);
 
 module.exports = router;

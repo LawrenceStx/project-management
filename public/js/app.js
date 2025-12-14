@@ -192,6 +192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'projects': renderProjectsList(); break;
             case 'accounts': renderAccountsPage(); break;
             case 'announcements': renderAnnouncementsPage(); break;
+            case 'logs': renderLogsPage(); break;
             case 'settings': renderSettingsPage(); break;
             case 'logout':
                 fetch('/api/auth/logout', {method: 'POST'}).then(() => window.location.href = '/login.html');
@@ -399,15 +400,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const projectId = state.currentProject;
         const isAdmin = state.user.role_id === 1;
 
-        // HTML with Search and Sort
+        // 1. UPDATE HTML: Added a proper Search Button and removed onkeyup from input
         mainContent.innerHTML = `
             <div class="flex-between mb-2" style="flex-wrap:wrap; gap:10px;">
                 <h2>Tasks</h2>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <!-- SEARCH BAR -->
-                    <input type="text" id="task-search-input" placeholder="Search tasks..." 
-                           value="${state.taskSearch}" 
-                           style="margin:0; width:200px; padding:8px 12px;">
+                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                    
+                    <!-- SEARCH GROUP -->
+                    <div style="display:flex; gap:5px;">
+                        <input type="text" id="task-search-input" placeholder="Search task or member..." 
+                               value="${state.taskSearch}" 
+                               style="margin:0; width:200px; padding:8px 12px;">
+                        <button class="btn btn-primary" id="btn-do-search" style="padding: 8px 15px;">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
                     
                     <!-- FILTER STATUS -->
                     <select id="task-filter" style="width: auto; margin:0; padding:8px 12px;">
@@ -433,27 +440,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Event Listeners
         document.getElementById('task-filter').addEventListener('change', (e) => { state.taskFilter = e.target.value; renderTasksPage(); });
         document.getElementById('task-sort').addEventListener('change', (e) => { state.taskSort = e.target.value; renderTasksPage(); });
-        document.getElementById('task-search-input').addEventListener('keyup', (e) => { state.taskSearch = e.target.value.toLowerCase(); renderTasksPage(); });
+       
+        const searchInput = document.getElementById('task-search-input');
+        const searchBtn = document.getElementById('btn-do-search');
+
+        const performSearch = () => {
+            state.taskSearch = searchInput.value.toLowerCase();
+            renderTasksPage(); // Re-render with new filter
+        };
+
+        searchBtn.addEventListener('click', performSearch);
+        searchInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
 
         try {
             const res = await fetch(`/api/projects/${projectId}/tasks`);
             let tasks = await res.json();
 
-            // 1. Filter by Status
+            // Filter by Status
             if (state.taskFilter !== 'All') tasks = tasks.filter(t => t.status === state.taskFilter);
 
-            // 2. Filter by Search Term
+            // 4. FILTER UPDATE: Search by Task Name, Description, OR Assigned Member Name
             if (state.taskSearch) {
+                const term = state.taskSearch;
                 tasks = tasks.filter(t => 
-                    t.name.toLowerCase().includes(state.taskSearch) || 
-                    (t.description && t.description.toLowerCase().includes(state.taskSearch))
+                    t.name.toLowerCase().includes(term) || 
+                    (t.description && t.description.toLowerCase().includes(term)) ||
+                    (t.assigned_to_name && t.assigned_to_name.toLowerCase().includes(term)) // <-- Added Member Search
                 );
             }
 
-            // 3. Sort Logic
+            // Sort Logic
             tasks.sort((a, b) => {
                 if (state.taskSort === 'Default') {
-                    // Custom order: Todo (1) -> In Progress (2) -> Done (3)
                     const statusVal = { 'Todo': 1, 'In Progress': 2, 'Done': 3 };
                     return statusVal[a.status] - statusVal[b.status];
                 } else if (state.taskSort === 'DateAsc') {
@@ -463,11 +483,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
             
-            // Rendering (Keep existing rendering logic below)
+            // Rendering
             const container = document.getElementById('task-container');
             container.innerHTML = '';
 
-            if(tasks.length === 0) { container.innerHTML = '<p style="color:var(--text-muted)">No tasks found.</p>'; return; }
+            if(tasks.length === 0) { 
+                container.innerHTML = `
+                <div class="span-4 text-center" style="padding:40px; color:var(--text-muted)">
+                    <i class="bi bi-search" style="font-size:2rem; display:block; margin-bottom:10px;"></i>
+                    No tasks found matching your criteria.
+                </div>`; 
+                return; 
+            }
 
             tasks.forEach(t => {
                 const statusClass = t.status === 'In Progress' ? 'status-In' : `status-${t.status}`;
@@ -478,6 +505,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (match && match[2].length === 11) vid = `<div class="video-container"><iframe src="//www.youtube.com/embed/${match[2]}" allowfullscreen></iframe></div>`;
                 }
                 let link = t.external_link ? `<a href="${t.external_link}" target="_blank" class="task-link-btn"><i class="bi bi-link-45deg"></i> Open Link</a>` : '';
+
+                // NEW: Show Assigned User Avatar/Name
+                const assigneeHtml = t.assigned_to_name 
+                    ? `<div style="display:flex; align-items:center; gap:5px; margin-top:10px; font-size:0.85rem; color:#666;">
+                         <i class="bi bi-person-circle"></i> ${t.assigned_to_name}
+                       </div>` 
+                    : `<div style="margin-top:10px; font-size:0.85rem; color:#999; font-style:italic;">Unassigned</div>`;
 
                 const div = document.createElement('div');
                 div.className = `card task-card fade-up ${statusClass}`;
@@ -496,6 +530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <p class="preserve-text" style="color:var(--text-muted); font-size:0.9rem; margin-bottom:15px;">${t.description||'No description'}</p>
                         ${link}
                         ${vid}
+                        ${assigneeHtml}
                     </div>
                     <div style="margin-top:20px; padding-top:15px; border-top:1px solid rgba(0,0,0,0.05);" class="flex-between">
                         <small style="color:var(--text-light)"><i class="bi bi-calendar"></i> ${t.due_date||'--'}</small>
@@ -718,12 +753,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.id = `ann-${item.id}`;
         el.style.borderLeft = '5px solid var(--primary)';
         
+        // --- USE THE HELPER FUNCTION HERE ---
+        const formattedMessage = formatAnnouncementText(item.message);
+
         el.innerHTML = `
             <div class="flex-between">
                 <h3 style="color: var(--primary)">${item.title}</h3>
                 <small style="color:var(--text-muted)">${new Date(item.created_at).toLocaleDateString()}</small>
             </div>
-            <p class="mt-2" style="line-height:1.6;">${item.message}</p>
+            
+            <!-- Message Container -->
+            <div class="mt-2" style="line-height:1.6; color: var(--text-main);">
+                ${formattedMessage}
+            </div>
+
             <div class="flex-between mt-2" style="border-top:1px solid #eee; padding-top:10px;">
                 <small style="color:var(--text-light);">Posted by <strong>${item.author}</strong></small>
                 ${isAdmin ? `<button class="btn-icon" style="color:#ef4444" onclick="deleteAnnouncement(${item.id})"><i class="bi bi-trash"></i></button>` : ''}
@@ -997,6 +1040,98 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
+    async function renderLogsPage() {
+        mainContent.innerHTML = `
+            <div class="flex-between mb-2">
+                <h2>Project Logs</h2>
+                <button class="btn btn-primary" onclick="openLogModal()"><i class="bi bi-pencil-square"></i> Add Entry</button>
+            </div>
+            <div id="logs-container" style="display:flex; flex-direction:column; gap:15px;">Loading...</div>
+        `;
+
+        try {
+            const res = await fetch(`/api/projects/${state.currentProject}/logs`);
+            const logs = await res.json();
+            const container = document.getElementById('logs-container');
+            container.innerHTML = '';
+
+            if (logs.length === 0) {
+                container.innerHTML = `<div class="text-center" style="color:var(--text-muted); padding:40px;">No logs recorded yet.</div>`;
+                return;
+            }
+
+            logs.forEach(log => {
+                // Reuse the announcement text formatter for logs
+                const formattedContent = formatAnnouncementText(log.content); 
+                const isMyLog = state.user.role_id === 1 || state.user.username === log.author;
+
+                const div = document.createElement('div');
+                div.className = 'card fade-up';
+                div.style.borderLeft = '4px solid var(--accent)';
+                div.innerHTML = `
+                    <div class="flex-between" style="margin-bottom:10px; border-bottom:1px dashed #eee; padding-bottom:10px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <i class="bi bi-person-circle" style="color:var(--text-light)"></i>
+                            <strong>${log.author}</strong>
+                            <small style="color:var(--text-muted)">${new Date(log.created_at).toLocaleString()}</small>
+                        </div>
+                        ${isMyLog ? `
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn-icon" onclick='openEditLog(${JSON.stringify(log).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
+                                <button class="btn-icon" style="color:#ef4444" onclick="deleteLog(${log.id})"><i class="bi bi-trash"></i></button>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div style="line-height:1.6; color:var(--text-main);">${formattedContent}</div>
+                `;
+                container.appendChild(div);
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    // --- INSERT EXPORTED FUNCTIONS at the bottom ---
+
+    window.openLogModal = () => {
+        document.getElementById('log-form').reset();
+        document.getElementById('log-id').value = '';
+        openModal('logModal');
+    };
+
+    window.openEditLog = (log) => {
+        document.getElementById('log-id').value = log.id;
+        document.getElementById('log-content').value = log.content;
+        openModal('logModal');
+    };
+
+    window.deleteLog = async (id) => {
+        if(!confirm("Delete this log entry?")) return;
+        await fetch(`/api/logs/${id}`, { method: 'DELETE' });
+    };
+
+    // --- INSERT FORM LISTENER inside DOMContentLoaded ---
+    const logForm = document.getElementById('log-form');
+    if(logForm) logForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('log-id').value;
+        const content = document.getElementById('log-content').value;
+        const url = id ? `/api/logs/${id}` : '/api/logs';
+        const method = id ? 'PUT' : 'POST';
+
+        await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ project_id: state.currentProject, content })
+        });
+        closeModal('logModal');
+    });
+
+    // --- INSERT SOCKET LISTENER ---
+    socket.on('log:update', (data) => {
+        if (state.currentProject == data.projectId && document.querySelector('.nav-link[data-page="logs"]').classList.contains('active')) {
+            renderLogsPage();
+        }
+    });
+
     // ==========================================
     // SOCKET LISTENERS
     // ==========================================
@@ -1248,4 +1383,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert("Update failed.");
         }
     });
+
+    
+
+    // ==========================================
+    // HELPER: Format Text (YouTube, Images, Newlines)
+    // ==========================================
+    function formatAnnouncementText(text) {
+        if (!text) return '';
+
+        // 1. Sanitize HTML (prevent XSS)
+        let safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        // 2. Convert New Lines to <br> (Essential because we return HTML)
+        safeText = safeText.replace(/\n/g, '<br>');
+
+        // 3. Embed YouTube Videos
+        const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/g;
+        safeText = safeText.replace(youtubeRegex, '<div class="video-container" style="margin-top:10px;"><iframe src="https://www.youtube.com/embed/$1" frameborder="0" allowfullscreen></iframe></div>');
+
+        // 4. Embed Images
+        const imageRegex = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/ig;
+        safeText = safeText.replace(imageRegex, '<img src="$1" alt="Image" style="max-width:100%; border-radius:10px; margin-top:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">');
+
+        return safeText;
+    }
 });

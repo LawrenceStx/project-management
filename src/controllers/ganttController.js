@@ -1,6 +1,8 @@
+// IN: src/controllers/ganttController.js
 const db = require('../db/database');
 
 exports.getEvents = (req, res) => {
+    // Select all columns including description
     db.all("SELECT * FROM project_events WHERE project_id = ? ORDER BY start_date ASC", [req.params.projectId], (err, rows) => {
         if (err) return res.status(500).json({ error: 'DB Error' });
         res.json(rows);
@@ -8,18 +10,22 @@ exports.getEvents = (req, res) => {
 };
 
 exports.createEvent = (req, res) => {
-    const { project_id, name, start_date, end_date, color } = req.body;
-    db.run("INSERT INTO project_events (project_id, name, start_date, end_date, color) VALUES (?, ?, ?, ?, ?)", 
-    [project_id, name, start_date, end_date, color || '#ffc107'], function(err) {
+    // Added description to inputs
+    const { project_id, name, start_date, end_date, color, description } = req.body;
+    
+    db.run("INSERT INTO project_events (project_id, name, start_date, end_date, color, description) VALUES (?, ?, ?, ?, ?, ?)", 
+    [project_id, name, start_date, end_date, color || '#ffc107', description || ''], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ id: this.lastID, message: 'Event created' });
     });
 };
 
 exports.updateEvent = (req, res) => {
-    const { name, start_date, end_date, color } = req.body;
-    db.run("UPDATE project_events SET name=?, start_date=?, end_date=?, color=? WHERE id=?", 
-    [name, start_date, end_date, color, req.params.id], (err) => {
+    // Added description to inputs
+    const { name, start_date, end_date, color, description } = req.body;
+    
+    db.run("UPDATE project_events SET name=?, start_date=?, end_date=?, color=?, description=? WHERE id=?", 
+    [name, start_date, end_date, color, description, req.params.id], (err) => {
         if (err) return res.status(500).json({ error: 'Update failed' });
         res.json({ message: 'Event updated' });
     });

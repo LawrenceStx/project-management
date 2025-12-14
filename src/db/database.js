@@ -71,24 +71,6 @@ const initDb = () => {
             FOREIGN KEY (assigned_to_id) REFERENCES users(id) ON DELETE SET NULL
         )`);
 
-        // ============================================================
-        // SAFE MIGRATION: Add new columns if they don't exist
-        // ============================================================
-        const addColumn = (table, col, type) => {
-            db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`, (err) => {
-                // Ignore "duplicate column name" error, report others
-                if (err && !err.message.includes('duplicate column name')) {
-                    console.error(`Migration Error (${col}):`, err.message);
-                } else if (!err) {
-                    console.log(`MIGRATION SUCCESS: Added ${col} to ${table}`);
-                }
-            });
-        };
-
-        addColumn('tasks', 'external_link', 'TEXT');
-        addColumn('tasks', 'youtube_link', 'TEXT');
-        // ============================================================
-
         // 6. Announcements
         db.run(`CREATE TABLE IF NOT EXISTS announcements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,6 +93,37 @@ const initDb = () => {
             FOREIGN KEY(project_id) REFERENCES projects(id)
         )`);
 
+
+        // 8. Project Logs (Notes)
+        db.run(`CREATE TABLE IF NOT EXISTS project_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
+            content TEXT NOT NULL,
+            created_by_id INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY(created_by_id) REFERENCES users(id)
+        )`);
+
+        // ============================================================
+        // SAFE MIGRATION: Add new columns if they don't exist
+        // ============================================================
+        const addColumn = (table, col, type) => {
+            db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`, (err) => {
+                // Ignore "duplicate column name" error, report others
+                if (err && !err.message.includes('duplicate column name')) {
+                    console.error(`Migration Error (${col}):`, err.message);
+                } else if (!err) {
+                    console.log(`MIGRATION SUCCESS: Added ${col} to ${table}`);
+                }
+            });
+        };
+
+        addColumn('tasks', 'external_link', 'TEXT');
+        addColumn('tasks', 'youtube_link', 'TEXT');
+        // ============================================================
+
+        
         console.log('Database initialized.');
     });
 };
