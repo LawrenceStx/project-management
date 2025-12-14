@@ -206,29 +206,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ==========================================
 
     async function renderDashboard() {
-        let stats = { projects: 0, myTasks: 0, users: 0, deadlines: [] }; // Init with array
+        let stats = { projects: 0, myTasks: 0, users: 0, deadlines: [], activeEvents: [] };
         try {
-            const res = await fetch('/api/dashboard/stats');
+            // Pass the current project ID to the API
+            const pId = state.currentProject || '';
+            const res = await fetch(`/api/dashboard/stats?projectId=${pId}`);
             if(res.ok) stats = await res.json();
         } catch(e) { console.error("Stats error", e); }
 
         const h = new Date().getHours();
         const greeting = h < 12 ? 'Good Morning' : h < 18 ? 'Good Afternoon' : 'Good Evening';
 
-        // Helper to generate deadline HTML
+        // --- 1. Deadlines HTML ---
         let deadlinesHtml = '';
         if(stats.deadlines.length === 0) {
             deadlinesHtml = `<div style="text-align:center; color:var(--text-muted); padding:20px;">No upcoming deadlines! 🎉</div>`;
         } else {
             deadlinesHtml = stats.deadlines.map(d => {
-                // Simple date formatter
                 const dateObj = new Date(d.due_date);
                 const today = new Date();
                 const diffTime = dateObj - today;
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
                 
                 let timeText = d.due_date;
-                let color = 'var(--primary)'; // Green default
+                let color = 'var(--primary)';
                 
                 if (diffDays < 0) { timeText = "Overdue"; color = "#ef4444"; }
                 else if (diffDays === 0) { timeText = "Due Today"; color = "#f59e0b"; }
@@ -244,6 +245,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <div style="font-size:0.8rem; color:#666; margin-top:4px;">${d.project_name}</div>
                 </div>`;
             }).join('');
+        }
+
+        // --- 2. Active Events (Phases) HTML ---
+        let eventsHtml = '';
+        if (stats.activeEvents.length === 0) {
+            eventsHtml = `
+                <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color: var(--text-muted); text-align:center;">
+                    <i class="bi bi-pause-circle" style="font-size:2rem; margin-bottom:10px;"></i>
+                    <p>No active phases today.</p>
+                </div>`;
+        } else {
+            const listHtml = stats.activeEvents.map(ev => `
+                <div style="display:flex; align-items:center; gap:10px; padding:10px; background:#f9fafb; border-radius:10px; margin-bottom:10px; border-left: 4px solid ${ev.color};">
+                    <div style="flex:1;">
+                        <strong style="color:var(--text-main); display:block;">${ev.name}</strong>
+                        <small style="color:var(--text-muted);">
+                            ${ev.project_name ? ev.project_name + ' • ' : ''} Ends ${ev.end_date}
+                        </small>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="background:${ev.color}20; color:${ev.color}; padding:4px 8px; border-radius:12px; font-size:0.75rem; font-weight:600;">Active</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            eventsHtml = `<div style="overflow-y:auto; flex:1;">${listHtml}</div>`;
         }
 
         mainContent.innerHTML = `
@@ -285,18 +312,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </div>
 
-                <!-- BENTO GRID ROW 2 -->
+                <!-- NEW: ACTIVE PHASE CARD -->
                  <div class="card span-2 fade-up" style="margin:0; min-height: 250px; display:flex; flex-direction:column;">
                     <div class="flex-between mb-2">
-                        <h3>Project Overview</h3>
-                        <i class="bi bi-three-dots"></i>
+                        <h3>Current Active Phase</h3>
+                        <i class="bi bi-activity" style="color:var(--primary);"></i>
                     </div>
-                    <div style="flex:1; display:flex; align-items:center; justify-content:center; color: var(--text-muted); background: #f9fafb; border-radius: var(--radius-sm);">
-                        <p><i class="bi bi-bar-chart-fill"></i> Analytics Placeholder</p>
-                    </div>
+                    ${eventsHtml}
                 </div>
 
-                <!-- UPCOMING DEADLINES (Dynamic) -->
+                <!-- UPCOMING DEADLINES -->
                 <div class="card span-2 fade-up" style="margin:0; min-height: 250px;">
                     <div class="flex-between mb-2">
                         <h3>Upcoming Deadlines</h3>
@@ -575,66 +600,136 @@ document.addEventListener('DOMContentLoaded', async () => {
             return; 
         }
 
-        const dates = events.map(e => [new Date(e.start_date), new Date(e.end_date)]).flat();
-        let minDate = new Date(Math.min.apply(null, dates));
-        let maxDate = new Date(Math.max.apply(null, dates));
+        // 1. SAFE DATE CALCULATION
+        const timestamps = events.map(e => [new Date(e.start_date).getTime(), new Date(e.end_date).getTime()]).flat();
+        const validTimestamps = timestamps.filter(t => !isNaN(t) && t > 0);
+
+        if (validTimestamps.length === 0) {
+            container.innerHTML = '<div class="text-center" style="color:red; padding:20px;">Invalid dates detected in events. Please check your data.</div>';
+            return;
+        }
+
+        let minDate = new Date(Math.min(...validTimestamps));
+        let maxDate = new Date(Math.max(...validTimestamps));
         minDate.setDate(minDate.getDate() - 5);
         maxDate.setDate(maxDate.getDate() + 10);
         
         const totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
-        const pxPerDay = 45; 
+
+        if (totalDays > 730) {
+            container.innerHTML = `<div class="text-center" style="color:#ef4444; padding:40px;">Timeline too long to render.</div>`;
+            return;
+        }
         
-        const header = document.createElement('div');
-        header.style.display = 'flex';
-        header.style.borderBottom = '1px solid #eee';
-        header.style.paddingBottom = '10px';
-        header.style.marginBottom = '20px';
+        const pxPerDay = 40; 
         
+        // 2. HEADER
+        const headerWrapper = document.createElement('div');
+        headerWrapper.style.position = 'sticky';
+        headerWrapper.style.top = '0';
+        headerWrapper.style.backgroundColor = '#fff';
+        headerWrapper.style.zIndex = '10';
+        headerWrapper.style.borderBottom = '1px solid #eee';
+        headerWrapper.style.marginBottom = '20px';
+
+        const monthRow = document.createElement('div');
+        monthRow.style.display = 'flex';
+        monthRow.style.height = '30px';
+        monthRow.style.borderBottom = '1px solid #f3f4f6';
+
+        let currDate = new Date(minDate);
+        let safetyCounter = 0;
+        while (currDate <= maxDate && safetyCounter < 50) {
+            safetyCounter++;
+            const currentMonth = currDate.getMonth();
+            const currentYear = currDate.getFullYear();
+            const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+            let segmentEnd = lastDayOfMonth < maxDate ? lastDayOfMonth : maxDate;
+            const daysInSegment = Math.floor((segmentEnd - currDate) / (1000 * 60 * 60 * 24)) + 1;
+            if(daysInSegment <= 0) break;
+
+            const monthDiv = document.createElement('div');
+            monthDiv.style.width = `${daysInSegment * pxPerDay}px`;
+            monthDiv.style.fontSize = '12px';
+            monthDiv.style.fontWeight = '600';
+            monthDiv.style.color = 'var(--text-main)';
+            monthDiv.style.paddingLeft = '10px';
+            monthDiv.style.display = 'flex';
+            monthDiv.style.alignItems = 'center';
+            monthDiv.style.borderRight = '1px solid #f3f4f6';
+            monthDiv.innerText = currDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+            monthRow.appendChild(monthDiv);
+            currDate.setDate(currDate.getDate() + daysInSegment);
+        }
+
+        const dayRow = document.createElement('div');
+        dayRow.style.display = 'flex';
         for(let i=0; i <= totalDays; i++) {
             const d = new Date(minDate);
             d.setDate(d.getDate() + i);
             const cell = document.createElement('div');
             cell.style.minWidth = `${pxPerDay}px`;
-            cell.style.fontSize = '11px';
+            cell.style.fontSize = '10px';
             cell.style.color = '#9ca3af';
             cell.style.textAlign = 'center';
+            cell.style.paddingTop = '5px';
+            cell.style.borderRight = '1px dashed #f9fafb';
+            if(d.toDateString() === new Date().toDateString()) {
+                cell.style.backgroundColor = '#ecfdf5';
+                cell.style.color = 'var(--primary)';
+                cell.style.fontWeight = 'bold';
+            }
             cell.innerText = `${d.getDate()}`;
-            header.appendChild(cell);
+            dayRow.appendChild(cell);
         }
-        container.appendChild(header);
 
+        headerWrapper.appendChild(monthRow);
+        headerWrapper.appendChild(dayRow);
+        container.appendChild(headerWrapper);
+
+        // 3. BARS
+        const barsWrapper = document.createElement('div');
+        barsWrapper.style.position = 'relative';
+        
         events.forEach(ev => {
-            const row = document.createElement('div');
-            row.style.position = 'relative';
-            row.style.height = '50px';
-            row.style.marginBottom = '10px';
-
             const start = new Date(ev.start_date);
             const end = new Date(ev.end_date);
+            if (isNaN(start) || isNaN(end)) return;
+
             const duration = (end - start) / (1000 * 60 * 60 * 24) + 1;
             const offset = (start - minDate) / (1000 * 60 * 60 * 24);
 
+            const barContainer = document.createElement('div');
+            barContainer.style.height = '40px'; 
+            barContainer.style.position = 'relative';
+            barContainer.style.marginBottom = '5px';
+
             const bar = document.createElement('div');
             bar.className = 'gantt-bar';
-            bar.innerHTML = `<span style="font-weight:600;">${ev.name}</span>`;
+            bar.innerHTML = `<span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ev.name}</span>`;
             bar.style.position = 'absolute';
             bar.style.left = `${offset * pxPerDay}px`;
             bar.style.width = `${Math.max(duration * pxPerDay, 40)}px`;
-            bar.style.height = '36px';
+            bar.style.height = '30px';
             bar.style.backgroundColor = ev.color;
             bar.style.opacity = '0.9';
-            bar.style.borderRadius = '8px';
+            bar.style.borderRadius = '6px';
             bar.style.padding = '0 10px';
             bar.style.display = 'flex';
             bar.style.alignItems = 'center';
             bar.style.fontSize = '12px';
             bar.style.color = '#fff'; 
-            bar.style.cursor = 'pointer';
+            bar.style.cursor = 'pointer'; // Now shows grab hand on mousedown
             
-            bar.onclick = () => openEditEventModal(ev);
-            row.appendChild(bar);
-            container.appendChild(row);
+            // --- NEW: Apply Drag Logic instead of simple OnClick ---
+            makeBarDraggable(bar, ev, pxPerDay); 
+            // -----------------------------------------------------
+
+            barContainer.appendChild(bar);
+            barsWrapper.appendChild(barContainer);
         });
+        
+        container.appendChild(barsWrapper);
     }
 
     async function renderMembersPage() {
@@ -1407,5 +1502,93 @@ document.addEventListener('DOMContentLoaded', async () => {
         safeText = safeText.replace(imageRegex, '<img src="$1" alt="Image" style="max-width:100%; border-radius:10px; margin-top:10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">');
 
         return safeText;
+    }
+
+    // ==========================================
+    // HELPER: Draggable Logic for Gantt Bars
+    // ==========================================
+    function makeBarDraggable(bar, ev, pxPerDay) {
+        let isDragging = false;
+        let startX = 0;
+        let originalLeft = 0;
+        let hasMoved = false;
+
+        bar.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            hasMoved = false;
+            startX = e.clientX;
+            originalLeft = parseFloat(bar.style.left);
+            
+            // Visual Feedback
+            bar.style.cursor = 'grabbing';
+            bar.style.transition = 'none'; // Disable animation for instant follow
+            bar.style.zIndex = '100';      // Bring to front
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            const dx = e.clientX - startX;
+            if (Math.abs(dx) > 5) hasMoved = true; // Threshold to distinguish click vs drag
+
+            bar.style.left = `${originalLeft + dx}px`;
+        });
+
+        window.addEventListener('mouseup', async (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            bar.style.cursor = 'pointer';
+            bar.style.zIndex = '';
+            bar.style.transition = '0.3s'; // Re-enable animation
+
+            // 1. If it was just a click (no movement), open the modal
+            if (!hasMoved) {
+                bar.style.left = `${originalLeft}px`; // Snap back just in case
+                window.openEditEventModal(ev);
+                return;
+            }
+
+            // 2. Calculate new dates based on pixels moved
+            const dx = e.clientX - startX;
+            const daysDiff = Math.round(dx / pxPerDay);
+
+            if (daysDiff !== 0) {
+                // Apply Date Math
+                const oldStart = new Date(ev.start_date);
+                const oldEnd = new Date(ev.end_date);
+                
+                oldStart.setDate(oldStart.getDate() + daysDiff);
+                oldEnd.setDate(oldEnd.getDate() + daysDiff);
+
+                // Format YYYY-MM-DD
+                const toSQLDate = (d) => d.toISOString().split('T')[0];
+
+                // Update Backend
+                try {
+                    await fetch(`/api/events/${ev.id}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            name: ev.name,
+                            color: ev.color,
+                            description: ev.description,
+                            start_date: toSQLDate(oldStart),
+                            end_date: toSQLDate(oldEnd)
+                        })
+                    });
+                    
+                    // Refresh to snap to grid accurately
+                    // We use a small timeout to let the db write finish
+                    setTimeout(() => renderGanttPage(), 100); 
+                } catch (err) {
+                    console.error("Drag update failed", err);
+                    bar.style.left = `${originalLeft}px`; // Revert on error
+                }
+            } else {
+                // Moved but less than a day, snap back
+                bar.style.left = `${originalLeft}px`;
+            }
+        });
     }
 });

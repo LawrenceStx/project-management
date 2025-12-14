@@ -201,15 +201,15 @@ exports.changePassword = async (req, res) => {
 exports.getDashboardStats = (req, res) => {
     const userId = req.session.user.id;
     const roleId = req.session.user.role_id;
-    
-    // Existing Counts Logic
+    const projectId = req.query.projectId; // <--- Capture Query Param
+
+    // 1. Base Counts
     const qProjects = roleId === 1 ? "SELECT COUNT(*) as c FROM projects" : "SELECT COUNT(*) as c FROM project_members WHERE user_id = ?";
     const pParams = roleId === 1 ? [] : [userId];
     const qTasks = "SELECT COUNT(*) as c FROM tasks WHERE assigned_to_id = ? AND status != 'Done'";
     const qUsers = "SELECT COUNT(*) as c FROM users";
     
-    // FIXED: Query for deadlines (Now + 7 days)
-    // We use date('now') to get today and date('now', '+7 days') for next week
+    // 2. Deadlines (Upcoming 7 days)
     const qDeadlines = `
         SELECT t.name, t.due_date, p.name as project_name 
         FROM tasks t
@@ -221,8 +221,33 @@ exports.getDashboardStats = (req, res) => {
         ORDER BY t.due_date ASC
     `;
 
+    // 3. NEW: Active Events (Phases)
+    // Find events where TODAY is between Start and End
+    let qEvents = `
+        SELECT pe.name, pe.color, p.name as project_name, pe.end_date
+        FROM project_events pe
+        JOIN projects p ON pe.project_id = p.id
+    `;
+    let eParams = [];
+
+    if (projectId && projectId !== 'null' && projectId !== 'undefined') {
+        // Specific Project Selected
+        qEvents += ` WHERE pe.project_id = ? `;
+        eParams.push(projectId);
+    } else if (roleId !== 1) {
+        // Member (All their projects)
+        qEvents += ` JOIN project_members pm ON p.id = pm.project_id WHERE pm.user_id = ? `;
+        eParams.push(userId);
+    } else {
+        // Admin (All projects)
+        qEvents += ` WHERE 1=1 `;
+    }
+    
+    // Add Date Condition (SQLite)
+    qEvents += ` AND date('now') BETWEEN pe.start_date AND pe.end_date ORDER BY pe.end_date ASC`;
+
     db.serialize(() => {
-        let stats = { projects: 0, myTasks: 0, users: 0, deadlines: [] };
+        let stats = { projects: 0, myTasks: 0, users: 0, deadlines: [], activeEvents: [] };
         
         db.get(qProjects, pParams, (e, r) => {
             if(!e && r) stats.projects = r.c;
@@ -233,10 +258,14 @@ exports.getDashboardStats = (req, res) => {
                 db.get(qUsers, [], (e3, r3) => {
                     if(!e3 && r3) stats.users = r3.c;
                     
-                    // Execute Deadline Query
                     db.all(qDeadlines, [userId], (e4, rows) => {
                         if(!e4 && rows) stats.deadlines = rows;
-                        res.json(stats);
+
+                        // Execute Active Events Query
+                        db.all(qEvents, eParams, (e5, events) => {
+                            if(!e5 && events) stats.activeEvents = events;
+                            res.json(stats);
+                        });
                     });
                 });
             });
