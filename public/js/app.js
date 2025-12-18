@@ -591,12 +591,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             return; 
         }
 
-        // 1. SAFE DATE CALCULATION
         const timestamps = events.map(e => [new Date(e.start_date).getTime(), new Date(e.end_date).getTime()]).flat();
         const validTimestamps = timestamps.filter(t => !isNaN(t) && t > 0);
 
         if (validTimestamps.length === 0) {
-            container.innerHTML = '<div class="text-center" style="color:red; padding:20px;">Invalid dates detected in events. Please check your data.</div>';
+            container.innerHTML = '<div class="text-center" style="color:red; padding:20px;">Invalid dates detected.</div>';
             return;
         }
 
@@ -606,79 +605,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         maxDate.setDate(maxDate.getDate() + 10);
         
         const totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
-
         if (totalDays > 730) {
-            container.innerHTML = `<div class="text-center" style="color:#ef4444; padding:40px;">Timeline too long to render.</div>`;
+            container.innerHTML = `<div class="text-center" style="color:#ef4444; padding:40px;">Timeline too long.</div>`;
             return;
         }
-        
         const pxPerDay = 40; 
         
-        // 2. HEADER
+        // HEADER (No changes here)
         const headerWrapper = document.createElement('div');
-        headerWrapper.style.position = 'sticky';
-        headerWrapper.style.top = '0';
-        headerWrapper.style.backgroundColor = '#fff';
-        headerWrapper.style.zIndex = '10';
-        headerWrapper.style.borderBottom = '1px solid #eee';
-        headerWrapper.style.marginBottom = '20px';
-
+        headerWrapper.style.cssText = 'position: sticky; top: 0; background-color: #fff; z-index: 10; border-bottom: 1px solid #eee; margin-bottom: 20px;';
         const monthRow = document.createElement('div');
-        monthRow.style.display = 'flex';
-        monthRow.style.height = '30px';
-        monthRow.style.borderBottom = '1px solid #f3f4f6';
-
+        monthRow.style.cssText = 'display: flex; height: 30px; border-bottom: 1px solid #f3f4f6;';
         let currDate = new Date(minDate);
-        let safetyCounter = 0;
-        while (currDate <= maxDate && safetyCounter < 50) {
-            safetyCounter++;
-            const currentMonth = currDate.getMonth();
-            const currentYear = currDate.getFullYear();
-            const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+        while (currDate <= maxDate) {
+            const lastDayOfMonth = new Date(currDate.getFullYear(), currDate.getMonth() + 1, 0);
             let segmentEnd = lastDayOfMonth < maxDate ? lastDayOfMonth : maxDate;
             const daysInSegment = Math.floor((segmentEnd - currDate) / (1000 * 60 * 60 * 24)) + 1;
             if(daysInSegment <= 0) break;
-
             const monthDiv = document.createElement('div');
-            monthDiv.style.width = `${daysInSegment * pxPerDay}px`;
-            monthDiv.style.fontSize = '12px';
-            monthDiv.style.fontWeight = '600';
-            monthDiv.style.color = 'var(--text-main)';
-            monthDiv.style.paddingLeft = '10px';
-            monthDiv.style.display = 'flex';
-            monthDiv.style.alignItems = 'center';
-            monthDiv.style.borderRight = '1px solid #f3f4f6';
+            monthDiv.style.cssText = `width: ${daysInSegment * pxPerDay}px; font-size: 12px; font-weight: 600; padding-left: 10px; display: flex; align-items: center; border-right: 1px solid #f3f4f6;`;
             monthDiv.innerText = currDate.toLocaleString('default', { month: 'long', year: 'numeric' });
             monthRow.appendChild(monthDiv);
             currDate.setDate(currDate.getDate() + daysInSegment);
         }
-
         const dayRow = document.createElement('div');
         dayRow.style.display = 'flex';
         for(let i=0; i <= totalDays; i++) {
             const d = new Date(minDate);
             d.setDate(d.getDate() + i);
             const cell = document.createElement('div');
-            cell.style.minWidth = `${pxPerDay}px`;
-            cell.style.fontSize = '10px';
-            cell.style.color = '#9ca3af';
-            cell.style.textAlign = 'center';
-            cell.style.paddingTop = '5px';
-            cell.style.borderRight = '1px dashed #f9fafb';
-            if(d.toDateString() === new Date().toDateString()) {
-                cell.style.backgroundColor = '#ecfdf5';
-                cell.style.color = 'var(--primary)';
-                cell.style.fontWeight = 'bold';
-            }
+            cell.style.cssText = `min-width: ${pxPerDay}px; font-size: 10px; color: #9ca3af; text-align: center; padding-top: 5px; border-right: 1px dashed #f9fafb;`;
+            if(d.toDateString() === new Date().toDateString()) cell.style.cssText += 'background-color: #ecfdf5; color: var(--primary); font-weight: bold;';
             cell.innerText = `${d.getDate()}`;
             dayRow.appendChild(cell);
         }
-
         headerWrapper.appendChild(monthRow);
         headerWrapper.appendChild(dayRow);
         container.appendChild(headerWrapper);
 
-        // 3. BARS
+        // BARS
         const barsWrapper = document.createElement('div');
         barsWrapper.style.position = 'relative';
         
@@ -690,31 +655,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             const duration = (end - start) / (1000 * 60 * 60 * 24) + 1;
             const offset = (start - minDate) / (1000 * 60 * 60 * 24);
 
+            const assigneesHtml = (ev.assignees || []).map(a => `<img src="https://ui-avatars.com/api/?name=${a.username}&background=random&size=24&color=fff" title="${a.username}" style="border-radius:50%; width:24px; height:24px; border:1px solid #fff; margin-left:-8px;">`).join('');
+
             const barContainer = document.createElement('div');
-            barContainer.style.height = '40px'; 
-            barContainer.style.position = 'relative';
-            barContainer.style.marginBottom = '5px';
+            barContainer.style.cssText = 'height: 40px; position: relative; margin-bottom: 5px;';
 
             const bar = document.createElement('div');
             bar.className = 'gantt-bar';
-            bar.innerHTML = `<span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ev.name}</span>`;
-            bar.style.position = 'absolute';
-            bar.style.left = `${offset * pxPerDay}px`;
-            bar.style.width = `${Math.max(duration * pxPerDay, 40)}px`;
-            bar.style.height = '30px';
-            bar.style.backgroundColor = ev.color;
-            bar.style.opacity = '0.9';
-            bar.style.borderRadius = '6px';
-            bar.style.padding = '0 10px';
-            bar.style.display = 'flex';
-            bar.style.alignItems = 'center';
-            bar.style.fontSize = '12px';
-            bar.style.color = '#fff'; 
-            bar.style.cursor = 'pointer'; // Now shows grab hand on mousedown
+            bar.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; width:100%;"><span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ev.name}</span><div style="display:flex; padding-right:5px;">${assigneesHtml}</div></div>`;
+            bar.style.cssText = `position: absolute; left: ${offset * pxPerDay}px; width: ${Math.max(duration * pxPerDay, 40)}px; height: 30px; background-color: ${ev.color}; opacity: 0.9; border-radius: 6px; padding: 0 10px; display: flex; align-items: center; font-size: 12px; color: #fff; cursor: pointer;`;
             
-            // --- NEW: Apply Drag Logic instead of simple OnClick ---
+            // --- THIS IS THE FIX ---
+            // Re-attach the draggable logic to the bar
             makeBarDraggable(bar, ev, pxPerDay); 
-            // -----------------------------------------------------
 
             barContainer.appendChild(bar);
             barsWrapper.appendChild(barContainer);
@@ -1089,30 +1042,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // --- Event/Gantt Actions ---
-    window.openNewEventModal = () => {
-        document.getElementById('event-form').reset();
-        document.getElementById('ev-id').value = ''; 
-        const delBtn = document.getElementById('btn-delete-event');
-        if(delBtn) delBtn.classList.add('hidden');
+    window.openEventModal = async (event = null) => {
+        const form = document.getElementById('event-form');
+        form.reset();
+
+        const currentAssigneesContainer = document.getElementById('ev-current-assignees');
+        const assigneeChecklistContainer = document.getElementById('ev-assignees-container');
+
+        // --- FIX: Reset UI state robustly BEFORE doing anything else ---
+        assigneeChecklistContainer.classList.add('hidden'); // Ensure it starts hidden
+        currentAssigneesContainer.innerHTML = '<small style="color:var(--text-muted)">Loading...</small>';
         openModal('eventModal');
-    };
 
-    window.openEditEventModal = (ev) => {
-        document.getElementById('ev-id').value = ev.id;
-        document.getElementById('ev-name').value = ev.name;
-        // <-- FIX: This line was missing -->
-        document.getElementById('ev-desc').value = ev.description || ''; 
-        document.getElementById('ev-start').value = ev.start_date;
-        document.getElementById('ev-end').value = ev.end_date;
-        document.getElementById('ev-color').value = ev.color;
-
-        const delBtn = document.getElementById('btn-delete-event');
-        if(state.user.role_id === 1) {
-            if(delBtn) delBtn.classList.remove('hidden');
+        // --- Modal Mode (Edit vs Create) ---
+        if (event) {
+            document.getElementById('ev-id').value = event.id; // This will now work
+            document.getElementById('ev-name').value = event.name;
+            document.getElementById('ev-desc').value = event.description || '';
+            document.getElementById('ev-start').value = event.start_date;
+            document.getElementById('ev-end').value = event.end_date;
+            document.getElementById('ev-color').value = event.color;
+            document.getElementById('btn-delete-event').classList.remove('hidden');
         } else {
-            if(delBtn) delBtn.classList.add('hidden');
+            document.getElementById('ev-id').value = '';
+            document.getElementById('btn-delete-event').classList.add('hidden');
         }
-        openModal('eventModal');
+
+        // --- Data Fetching ---
+        try {
+            const membersRes = await fetch(`/api/projects/${state.currentProject}/members/stats`);
+            if (!membersRes.ok) throw new Error('Failed to fetch members');
+            const projectMembers = await membersRes.json();
+
+            // --- State & Helper Function to draw the 'pills' ---
+            let assignedIds = (event && event.assignees) ? event.assignees.map(a => a.id) : [];
+
+            function updateCurrentAssigneesDisplay() {
+                currentAssigneesContainer.innerHTML = '';
+                const currentlyAssigned = projectMembers.filter(m => assignedIds.includes(m.id));
+
+                if (currentlyAssigned.length === 0) {
+                    currentAssigneesContainer.innerHTML = '<small style="color:var(--text-muted); align-self: center;">None assigned</small>';
+                } else {
+                    currentlyAssigned.forEach(m => {
+                        currentAssigneesContainer.innerHTML += `<span class="task-status-badge status-Todo" style="font-weight:500; padding: 5px 10px;">${m.username}</span>`;
+                    });
+                }
+            }
+
+            // --- UI Population (Checklist) ---
+            assigneeChecklistContainer.innerHTML = '';
+            projectMembers.forEach(member => {
+                const isChecked = assignedIds.includes(member.id);
+                const label = document.createElement('label');
+                label.style.cssText = 'display:flex; align-items-center; gap:8px; font-weight:500; cursor:pointer;';
+                label.innerHTML = `<input type="checkbox" class="ev-assignee-chk" value="${member.id}" ${isChecked ? 'checked' : ''} style="width:auto; margin:0; height: 16px; width: 16px;"> ${member.username}`;
+                
+                label.querySelector('input').addEventListener('change', (e) => {
+                    const memberId = parseInt(e.target.value);
+                    if (e.target.checked) {
+                        if (!assignedIds.includes(memberId)) assignedIds.push(memberId);
+                    } else {
+                        assignedIds = assignedIds.filter(id => id !== memberId);
+                    }
+                    updateCurrentAssigneesDisplay();
+                });
+                assigneeChecklistContainer.appendChild(label);
+            });
+
+            // Initial display update
+            updateCurrentAssigneesDisplay();
+
+        } catch (error) {
+            console.error("Error populating event modal:", error);
+            currentAssigneesContainer.innerHTML = '<small style="color:red;">Could not load members.</small>';
+        }
     };
 
     window.deleteEvent = async () => {
@@ -1234,6 +1238,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) { console.error(e); }
     }
 
+
+
     // --- INSERT EXPORTED FUNCTIONS at the bottom ---
 
     window.openLogModal = () => {
@@ -1315,14 +1321,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if(eventForm) eventForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('ev-id').value;
+
+        // Get selected assignee IDs from the checkboxes
+        const assigneeIds = Array.from(document.querySelectorAll('.ev-assignee-chk:checked')).map(chk => chk.value);
+
         const payload = {
             project_id: state.currentProject,
             name: document.getElementById('ev-name').value,
-            // <-- FIX: This line was missing -->
             description: document.getElementById('ev-desc').value,
             start_date: document.getElementById('ev-start').value,
             end_date: document.getElementById('ev-end').value,
-            color: document.getElementById('ev-color').value
+            color: document.getElementById('ev-color').value,
+            assigneeIds: assigneeIds // <-- NEW: Add the selected IDs
         };
         const method = id ? 'PUT' : 'POST';
         const url = id ? `/api/events/${id}` : '/api/events';
@@ -1600,7 +1610,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 1. If it was just a click (no movement), open the modal
             if (!hasMoved) {
                 bar.style.left = `${originalLeft}px`; // Snap back just in case
-                window.openEditEventModal(ev);
+                window.openEventModal(ev);
                 return;
             }
 
@@ -1643,6 +1653,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 // Moved but less than a day, snap back
                 bar.style.left = `${originalLeft}px`;
+            }
+        });
+    }
+
+    const assignBtn = document.getElementById('ev-toggle-assignees-btn');
+    if (assignBtn) {
+        assignBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const checklist = document.querySelector('.assignee-checklist');
+            
+            if (checklist) {
+                checklist.classList.toggle('hidden');
             }
         });
     }

@@ -224,7 +224,7 @@ input, select, textarea {
 .stat-icon.purple { background: #ede9fe; color: #8b5cf6; }
 .stat-info h1 { font-size: 1.8rem; font-weight: 700; color: var(--text-main); margin: 5px 0; }
 
-.hidden { display: none; }
+.hidden {display: none !important;}
 .mt-2 { margin-top: 15px; } 
 .mb-2 { margin-bottom: 15px; }
 .gantt-bar { transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -293,4 +293,17 @@ input, select, textarea {
 .overdue-text {
     color: #ef4444;
     font-weight: 700;
+}
+
+.assignee-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 150px; 
+    overflow-y: auto; 
+    border: 1px solid var(--border); 
+    border-radius: var(--radius-sm); 
+    padding: 15px;
+    margin-bottom: 25px;
+    margin-top:10px;
 }

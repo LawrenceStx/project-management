@@ -105,6 +105,15 @@ const initDb = () => {
             FOREIGN KEY(created_by_id) REFERENCES users(id)
         )`);
 
+        // 9. Event Assignees (NEW)
+        db.run(`CREATE TABLE IF NOT EXISTS event_assignees (
+            event_id INTEGER,
+            user_id INTEGER,
+            PRIMARY KEY (event_id, user_id),
+            FOREIGN KEY (event_id) REFERENCES project_events(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`);
+
         // ============================================================
         // SAFE MIGRATION: Add new columns if they don't exist
         // ============================================================
