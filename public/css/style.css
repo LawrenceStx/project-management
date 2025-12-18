@@ -307,3 +307,65 @@ input, select, textarea {
     margin-bottom: 25px;
     margin-top:10px;
 }
+
+.gantt-avatar-stack {
+    display: flex;
+    padding-right: 5px;
+}
+
+/* Individual CSS-based avatar */
+.gantt-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #fff; /* Creates the overlap effect */
+    margin-left: -10px; /* Pulls avatars on top of each other */
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    user-select: none; /* Prevents text selection on drag */
+}
+.gantt-avatar:first-child {
+    margin-left: 0;
+}
+
+/* Calendar Header Styles */
+.gantt-header {
+    position: sticky;
+    top: 0;
+    background-color: #fff;
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+}
+.gantt-header-row {
+    display: flex;
+    border-bottom: 1px solid #f3f4f6;
+}
+.gantt-month {
+    flex-shrink: 0; /* Prevent month names from shrinking */
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    border-right: 1px solid #f3f4f6;
+}
+.gantt-day {
+    flex-shrink: 0;
+    width: 40px; /* Fixed width for each day cell */
+    font-size: 12px;
+    color: var(--text-light);
+    text-align: center;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+.gantt-day.is-today {
+    background-color: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: bold;
+    border-radius: 4px;
+}

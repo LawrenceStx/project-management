@@ -563,18 +563,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function renderGanttPage() {
+        // This top part of the function remains the same
         const isAdmin = state.user.role_id === 1;
 
+        // This is the part to replace
         mainContent.innerHTML = `
             <div class="flex-between mb-2">
-                <h2>Roadmap</h2>
-                ${isAdmin ? `<button class="btn btn-primary" onclick="openNewEventModal()"><i class="bi bi-calendar-plus"></i> Add Event</button>` : ''}
+                <h2 style="font-size: 1.5rem; font-weight: 600;">Roadmap</h2>
+                ${isAdmin ? `<button class="btn btn-primary" onclick="openEventModal()"><i class="bi bi-calendar-plus"></i> Add Event</button>` : ''}
             </div>
-            <div class="card" style="overflow-x: auto; min-height: 400px; padding: 20px;" id="gantt-container">
-                <div class="text-center mt-2">Loading Timeline...</div>
+            <div class="card" style="padding: 20px; overflow-x: auto;">
+                <div id="gantt-container" style="min-height: 400px;">
+                    <div class="text-center mt-2">Loading Timeline...</div>
+                </div>
             </div>
         `;
 
+        // This bottom part of the function remains the same
         try {
             const res = await fetch(`/api/projects/${state.currentProject}/events`);
             const events = await res.json();
@@ -587,92 +592,124 @@ document.addEventListener('DOMContentLoaded', async () => {
         container.innerHTML = '';
         
         if(events.length === 0) { 
-            container.innerHTML = '<div class="text-center" style="padding:50px; color: #9ca3af;"><i class="bi bi-calendar-x" style="font-size:2rem; margin-bottom:10px; display:block;"></i>No events scheduled yet.</div>'; 
+            container.innerHTML = '<div class="text-center" style="padding:50px; color: #9ca3af;"><i class="bi bi-calendar-x" style="font-size:2rem; margin-bottom:10px; display:block;"></i>No events scheduled for this roadmap.</div>'; 
             return; 
         }
 
-        const timestamps = events.map(e => [new Date(e.start_date).getTime(), new Date(e.end_date).getTime()]).flat();
-        const validTimestamps = timestamps.filter(t => !isNaN(t) && t > 0);
+        // --- HELPER FUNCTIONS ---
+        const getInitials = (name) => {
+            if (!name) return '?';
+            const parts = name.split(' ');
+            if (parts.length > 1) {
+                return parts[0][0] + parts[parts.length - 1][0];
+            }
+            return name.substring(0, 2);
+        };
 
-        if (validTimestamps.length === 0) {
-            container.innerHTML = '<div class="text-center" style="color:red; padding:20px;">Invalid dates detected.</div>';
-            return;
-        }
+        const stringToColor = (str) => {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const h = hash % 360;
+            return `hsl(${h}, 55%, 45%)`; // Consistent, pleasant colors
+        };
+        
+        // --- DATE & CALENDAR SETUP ---
+        events.forEach(e => {
+            e.startDate = new Date(e.start_date);
+            e.endDate = new Date(e.end_date);
+        });
+        const minDate = new Date(Math.min.apply(null, events.map(e => e.startDate)));
+        const maxDate = new Date(Math.max.apply(null, events.map(e => e.endDate)));
+        minDate.setDate(minDate.getDate() - 2);
+        maxDate.setDate(maxDate.getDate() + 2);
 
-        let minDate = new Date(Math.min(...validTimestamps));
-        let maxDate = new Date(Math.max(...validTimestamps));
-        minDate.setDate(minDate.getDate() - 5);
-        maxDate.setDate(maxDate.getDate() + 10);
-        
-        const totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
-        if (totalDays > 730) {
-            container.innerHTML = `<div class="text-center" style="color:#ef4444; padding:40px;">Timeline too long.</div>`;
-            return;
-        }
-        const pxPerDay = 40; 
-        
-        // HEADER (No changes here)
-        const headerWrapper = document.createElement('div');
-        headerWrapper.style.cssText = 'position: sticky; top: 0; background-color: #fff; z-index: 10; border-bottom: 1px solid #eee; margin-bottom: 20px;';
+        const dayWidth = 40;
+        const headerEl = document.createElement('div');
+        headerEl.className = 'gantt-header';
+
         const monthRow = document.createElement('div');
-        monthRow.style.cssText = 'display: flex; height: 30px; border-bottom: 1px solid #f3f4f6;';
-        let currDate = new Date(minDate);
-        while (currDate <= maxDate) {
-            const lastDayOfMonth = new Date(currDate.getFullYear(), currDate.getMonth() + 1, 0);
-            let segmentEnd = lastDayOfMonth < maxDate ? lastDayOfMonth : maxDate;
-            const daysInSegment = Math.floor((segmentEnd - currDate) / (1000 * 60 * 60 * 24)) + 1;
-            if(daysInSegment <= 0) break;
-            const monthDiv = document.createElement('div');
-            monthDiv.style.cssText = `width: ${daysInSegment * pxPerDay}px; font-size: 12px; font-weight: 600; padding-left: 10px; display: flex; align-items: center; border-right: 1px solid #f3f4f6;`;
-            monthDiv.innerText = currDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-            monthRow.appendChild(monthDiv);
-            currDate.setDate(currDate.getDate() + daysInSegment);
-        }
+        monthRow.className = 'gantt-header-row';
         const dayRow = document.createElement('div');
-        dayRow.style.display = 'flex';
-        for(let i=0; i <= totalDays; i++) {
-            const d = new Date(minDate);
-            d.setDate(d.getDate() + i);
-            const cell = document.createElement('div');
-            cell.style.cssText = `min-width: ${pxPerDay}px; font-size: 10px; color: #9ca3af; text-align: center; padding-top: 5px; border-right: 1px dashed #f9fafb;`;
-            if(d.toDateString() === new Date().toDateString()) cell.style.cssText += 'background-color: #ecfdf5; color: var(--primary); font-weight: bold;';
-            cell.innerText = `${d.getDate()}`;
-            dayRow.appendChild(cell);
+        dayRow.className = 'gantt-header-row';
+        
+        let currentDate = new Date(minDate);
+        while (currentDate <= maxDate) {
+            if (currentDate.getDate() === 1 || currentDate.getTime() === minDate.getTime()) {
+                const monthEl = document.createElement('div');
+                monthEl.className = 'gantt-month';
+                monthEl.innerText = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                monthRow.appendChild(monthEl);
+            }
+            const dayEl = document.createElement('div');
+            dayEl.className = 'gantt-day';
+            dayEl.innerText = currentDate.getDate();
+            if (currentDate.toDateString() === new Date().toDateString()) {
+                dayEl.classList.add('is-today');
+            }
+            dayRow.appendChild(dayEl);
+            currentDate.setDate(currentDate.getDate() + 1);
         }
-        headerWrapper.appendChild(monthRow);
-        headerWrapper.appendChild(dayRow);
-        container.appendChild(headerWrapper);
+        headerEl.appendChild(monthRow);
+        headerEl.appendChild(dayRow);
+        container.appendChild(headerEl);
 
-        // BARS
+        // --- SMART BAR PLACEMENT LOGIC ---
+        const lanes = [];
+        events.sort((a, b) => a.startDate - b.startDate);
+
+        events.forEach(event => {
+            let placed = false;
+            for (let i = 0; i < lanes.length; i++) {
+                if (event.startDate >= lanes[i]) {
+                    lanes[i] = event.endDate;
+                    event.lane = i;
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                event.lane = lanes.length;
+                lanes.push(event.endDate);
+            }
+        });
+
         const barsWrapper = document.createElement('div');
         barsWrapper.style.position = 'relative';
-        
+        barsWrapper.style.height = `${lanes.length * 50}px`;
+
         events.forEach(ev => {
-            const start = new Date(ev.start_date);
-            const end = new Date(ev.end_date);
-            if (isNaN(start) || isNaN(end)) return;
+            const duration = (ev.endDate - ev.startDate) / (1000 * 60 * 60 * 24) + 1;
+            const offset = (ev.startDate - minDate) / (1000 * 60 * 60 * 24);
 
-            const duration = (end - start) / (1000 * 60 * 60 * 24) + 1;
-            const offset = (start - minDate) / (1000 * 60 * 60 * 24);
-
-            const assigneesHtml = (ev.assignees || []).map(a => `<img src="https://ui-avatars.com/api/?name=${a.username}&background=random&size=24&color=fff" title="${a.username}" style="border-radius:50%; width:24px; height:24px; border:1px solid #fff; margin-left:-8px;">`).join('');
-
-            const barContainer = document.createElement('div');
-            barContainer.style.cssText = 'height: 40px; position: relative; margin-bottom: 5px;';
+            const avatarsHtml = (ev.assignees || []).map(a => 
+                `<div class="gantt-avatar" title="${a.username}" style="background-color: ${stringToColor(a.username)};">
+                    ${getInitials(a.username)}
+                </div>`
+            ).join('');
 
             const bar = document.createElement('div');
             bar.className = 'gantt-bar';
-            bar.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; width:100%;"><span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ev.name}</span><div style="display:flex; padding-right:5px;">${assigneesHtml}</div></div>`;
-            bar.style.cssText = `position: absolute; left: ${offset * pxPerDay}px; width: ${Math.max(duration * pxPerDay, 40)}px; height: 30px; background-color: ${ev.color}; opacity: 0.9; border-radius: 6px; padding: 0 10px; display: flex; align-items: center; font-size: 12px; color: #fff; cursor: pointer;`;
+            bar.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                    <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-left:10px;">${ev.name}</span>
+                    <div class="gantt-avatar-stack">${avatarsHtml}</div>
+                </div>`;
+            bar.style.cssText = `
+                position: absolute; 
+                top: ${ev.lane * 50}px;
+                left: ${offset * dayWidth}px; 
+                width: ${duration * dayWidth}px; 
+                height: 35px; background-color: ${ev.color}; 
+                border-radius: 8px; display: flex; align-items: center; 
+                font-size: 13px; color: #fff; cursor: pointer;
+            `;
             
-            // --- THIS IS THE FIX ---
-            // Re-attach the draggable logic to the bar
-            makeBarDraggable(bar, ev, pxPerDay); 
-
-            barContainer.appendChild(bar);
-            barsWrapper.appendChild(barContainer);
+            bar.addEventListener('click', () => openEventModal(ev));
+            barsWrapper.appendChild(bar);
         });
-        
+
         container.appendChild(barsWrapper);
     }
 
@@ -1572,90 +1609,90 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ==========================================
     // HELPER: Draggable Logic for Gantt Bars
     // ==========================================
-    function makeBarDraggable(bar, ev, pxPerDay) {
-        let isDragging = false;
-        let startX = 0;
-        let originalLeft = 0;
-        let hasMoved = false;
+    // function makeBarDraggable(bar, ev, pxPerDay) {
+    //     let isDragging = false;
+    //     let startX = 0;
+    //     let originalLeft = 0;
+    //     let hasMoved = false;
 
-        bar.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            hasMoved = false;
-            startX = e.clientX;
-            originalLeft = parseFloat(bar.style.left);
+    //     bar.addEventListener('mousedown', (e) => {
+    //         isDragging = true;
+    //         hasMoved = false;
+    //         startX = e.clientX;
+    //         originalLeft = parseFloat(bar.style.left);
             
-            // Visual Feedback
-            bar.style.cursor = 'grabbing';
-            bar.style.transition = 'none'; // Disable animation for instant follow
-            bar.style.zIndex = '100';      // Bring to front
-        });
+    //         // Visual Feedback
+    //         bar.style.cursor = 'grabbing';
+    //         bar.style.transition = 'none'; // Disable animation for instant follow
+    //         bar.style.zIndex = '100';      // Bring to front
+    //     });
 
-        window.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            e.preventDefault();
+    //     window.addEventListener('mousemove', (e) => {
+    //         if (!isDragging) return;
+    //         e.preventDefault();
             
-            const dx = e.clientX - startX;
-            if (Math.abs(dx) > 5) hasMoved = true; // Threshold to distinguish click vs drag
+    //         const dx = e.clientX - startX;
+    //         if (Math.abs(dx) > 5) hasMoved = true; // Threshold to distinguish click vs drag
 
-            bar.style.left = `${originalLeft + dx}px`;
-        });
+    //         bar.style.left = `${originalLeft + dx}px`;
+    //     });
 
-        window.addEventListener('mouseup', async (e) => {
-            if (!isDragging) return;
-            isDragging = false;
-            bar.style.cursor = 'pointer';
-            bar.style.zIndex = '';
-            bar.style.transition = '0.3s'; // Re-enable animation
+    //     window.addEventListener('mouseup', async (e) => {
+    //         if (!isDragging) return;
+    //         isDragging = false;
+    //         bar.style.cursor = 'pointer';
+    //         bar.style.zIndex = '';
+    //         bar.style.transition = '0.3s'; // Re-enable animation
 
-            // 1. If it was just a click (no movement), open the modal
-            if (!hasMoved) {
-                bar.style.left = `${originalLeft}px`; // Snap back just in case
-                window.openEventModal(ev);
-                return;
-            }
+    //         // 1. If it was just a click (no movement), open the modal
+    //         if (!hasMoved) {
+    //             bar.style.left = `${originalLeft}px`; // Snap back just in case
+    //             window.openEventModal(ev);
+    //             return;
+    //         }
 
-            // 2. Calculate new dates based on pixels moved
-            const dx = e.clientX - startX;
-            const daysDiff = Math.round(dx / pxPerDay);
+    //         // 2. Calculate new dates based on pixels moved
+    //         const dx = e.clientX - startX;
+    //         const daysDiff = Math.round(dx / pxPerDay);
 
-            if (daysDiff !== 0) {
-                // Apply Date Math
-                const oldStart = new Date(ev.start_date);
-                const oldEnd = new Date(ev.end_date);
+    //         if (daysDiff !== 0) {
+    //             // Apply Date Math
+    //             const oldStart = new Date(ev.start_date);
+    //             const oldEnd = new Date(ev.end_date);
                 
-                oldStart.setDate(oldStart.getDate() + daysDiff);
-                oldEnd.setDate(oldEnd.getDate() + daysDiff);
+    //             oldStart.setDate(oldStart.getDate() + daysDiff);
+    //             oldEnd.setDate(oldEnd.getDate() + daysDiff);
 
-                // Format YYYY-MM-DD
-                const toSQLDate = (d) => d.toISOString().split('T')[0];
+    //             // Format YYYY-MM-DD
+    //             const toSQLDate = (d) => d.toISOString().split('T')[0];
 
-                // Update Backend
-                try {
-                    await fetch(`/api/events/${ev.id}`, {
-                        method: 'PUT',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            name: ev.name,
-                            color: ev.color,
-                            description: ev.description,
-                            start_date: toSQLDate(oldStart),
-                            end_date: toSQLDate(oldEnd)
-                        })
-                    });
+    //             // Update Backend
+    //             try {
+    //                 await fetch(`/api/events/${ev.id}`, {
+    //                     method: 'PUT',
+    //                     headers: {'Content-Type': 'application/json'},
+    //                     body: JSON.stringify({
+    //                         name: ev.name,
+    //                         color: ev.color,
+    //                         description: ev.description,
+    //                         start_date: toSQLDate(oldStart),
+    //                         end_date: toSQLDate(oldEnd)
+    //                     })
+    //                 });
                     
-                    // Refresh to snap to grid accurately
-                    // We use a small timeout to let the db write finish
-                    setTimeout(() => renderGanttPage(), 100); 
-                } catch (err) {
-                    console.error("Drag update failed", err);
-                    bar.style.left = `${originalLeft}px`; // Revert on error
-                }
-            } else {
-                // Moved but less than a day, snap back
-                bar.style.left = `${originalLeft}px`;
-            }
-        });
-    }
+    //                 // Refresh to snap to grid accurately
+    //                 // We use a small timeout to let the db write finish
+    //                 setTimeout(() => renderGanttPage(), 100); 
+    //             } catch (err) {
+    //                 console.error("Drag update failed", err);
+    //                 bar.style.left = `${originalLeft}px`; // Revert on error
+    //             }
+    //         } else {
+    //             // Moved but less than a day, snap back
+    //             bar.style.left = `${originalLeft}px`;
+    //         }
+    //     });
+    // }
 
     const assignBtn = document.getElementById('ev-toggle-assignees-btn');
     if (assignBtn) {
