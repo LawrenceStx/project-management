@@ -79,14 +79,53 @@ router.get('/dashboard/stats', userController.getDashboardStats);
 router.get('/projects', projectController.getAllProjects);
 router.post('/projects', isAdmin, projectController.createProject);
 router.put('/projects/:id', isAdmin, projectController.updateProject);
+
+// ==================================================================
+// FIXED: Project Deletion Logic
+// The old code was too simple and failed if a project had roadmap events.
+// This new code ensures all related data is deleted safely within a transaction.
+// ==================================================================
 router.delete('/projects/:id', isAdmin, (req, res) => {
-    // Quick inline controller for delete to save file space, or move to controller
     const db = require('../db/database');
-    db.run("DELETE FROM projects WHERE id = ?", [req.params.id], (err) => {
-        if(err) return res.status(500).json({error: "DB Error"});
-        res.json({message: "Project deleted"});
+    const projectId = req.params.id;
+
+    db.serialize(() => {
+        db.run("BEGIN TRANSACTION;");
+
+        // Step 1: Delete from tables that DON'T have "ON DELETE CASCADE" in the schema.
+        // This prevents foreign key constraint errors. For us, that's 'project_events'.
+        db.run("DELETE FROM project_events WHERE project_id = ?", [projectId]);
+
+        // Step 2: Delete the main project. The database will automatically delete related
+        // tasks, members, and logs because they are set up with "ON DELETE CASCADE".
+        db.run("DELETE FROM projects WHERE id = ?", [projectId], function(err) {
+            if (err) {
+                db.run("ROLLBACK;"); // Undo changes if an error occurs
+                console.error("Error deleting project:", err.message);
+                return res.status(500).json({ error: "Database error during project deletion." });
+            }
+
+            if (this.changes > 0) {
+                // Success: The project was found and deleted.
+                db.run("COMMIT;", (commitErr) => {
+                    if (commitErr) {
+                         console.error("Error committing transaction:", commitErr.message);
+                         return res.status(500).json({ error: "Failed to finalize project deletion." });
+                    }
+                    // Notify all connected clients that a project was removed
+                    req.io.emit('project:delete', { projectId });
+                    res.json({ message: "Project and all related data deleted successfully." });
+                });
+            } else {
+                // The project ID was not found.
+                db.run("ROLLBACK;");
+                res.status(404).json({ error: "Project not found." });
+            }
+        });
     });
 });
+// ==================================================================
+
 router.put('/projects/:projectId/members', isAdmin, projectController.manageProjectMembers);
 
 

@@ -727,32 +727,80 @@ document.addEventListener('DOMContentLoaded', async () => {
         const projectId = state.currentProject;
         const isAdmin = state.user.role_id === 1;
 
+        // First, we must fetch the member data to dynamically create the role filter dropdown.
+        let allMembers = [];
+        try {
+            const res = await fetch(`/api/projects/${projectId}/members/stats`);
+            if (res.ok) {
+                allMembers = await res.json();
+            } else {
+                console.error("Failed to fetch members");
+            }
+        } catch (e) {
+            console.error("Error fetching members:", e);
+        }
+        
+        // Get unique roles from the member list to build the dropdown options.
+        // 'Set' automatically handles duplicates.
+        const roles = [...new Set(allMembers.map(m => m.role_in_project))];
+        const rolesOptionsHtml = roles.map(role => `<option value="${role}">${role}</option>`).join('');
+
+        // This is the new HTML layout for the header of the Members page.
         mainContent.innerHTML = `
-            <div class="flex-between mb-2">
+            <div class="flex-between mb-2" style="flex-wrap: wrap; gap: 15px;">
                 <h2>Team Members</h2>
-                <div style="display:flex; gap:10px;">
-                    <input type="text" id="mem-search" placeholder="Search..." style="margin:0; width:150px; padding:8px;">
-                    ${isAdmin ? `<button class="btn btn-primary" onclick="openManageMembersModal()">Manage</button>` : ''}
+                <div style="display:flex; gap:10px; flex-wrap: wrap; align-items:center;">
+                    
+                    <!-- NEW: Role filter dropdown -->
+                    <select id="mem-role-filter" style="margin:0; padding: 8px 12px; width: auto; height: 42px;">
+                        <option value="all">All Roles</option>
+                        ${rolesOptionsHtml}
+                    </select>
+
+                    <!-- UPDATED: Search input with a dedicated button -->
+                    <div style="display:flex; gap:5px;">
+                        <input type="text" id="mem-search" placeholder="Search by name..." style="margin:0; width:180px; padding:8px 12px;">
+                        <button id="mem-search-btn" class="btn btn-primary" style="padding: 8px 15px;"><i class="bi bi-search"></i></button>
+                    </div>
+                    
+                    ${isAdmin ? `<button class="btn btn-primary" onclick="openManageMembersModal()">Manage Team</button>` : ''}
                 </div>
             </div>
             <div id="members-container" class="grid-3">Loading...</div>
         `;
 
-        const res = await fetch(`/api/projects/${projectId}/members/stats`);
-        const allMembers = await res.json();
+        // Get references to the new elements we just created.
         const container = document.getElementById('members-container');
+        const searchInput = document.getElementById('mem-search');
+        const searchBtn = document.getElementById('mem-search-btn');
+        const roleFilter = document.getElementById('mem-role-filter');
 
-        const draw = (list) => {
+        // This is the core drawing function that applies the filters and renders the cards.
+        const draw = () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedRole = roleFilter.value;
+
+            // Apply filters to the full member list.
+            const filteredMembers = allMembers.filter(member => {
+                const nameMatch = member.username.toLowerCase().includes(searchTerm);
+                const roleMatch = (selectedRole === 'all') || (member.role_in_project === selectedRole);
+                return nameMatch && roleMatch;
+            });
+
+            // Render the results.
             container.innerHTML = '';
-            if(list.length===0) { container.innerHTML = 'No members.'; return; }
-            list.forEach(m => {
+            if (filteredMembers.length === 0) {
+                container.innerHTML = '<p class="span-4 text-center">No members found matching your criteria.</p>';
+                return;
+            }
+
+            filteredMembers.forEach(m => {
                 const total = m.total_tasks || 0;
                 const done = m.completed_tasks || 0;
                 const rate = total === 0 ? 0 : Math.round((done / total) * 100);
                 
                 const div = document.createElement('div');
                 div.className = 'card text-center fade-up';
-                // UPDATE: Added stats-text showing the count
                 div.innerHTML = `
                     <img src="https://ui-avatars.com/api/?name=${m.username}&background=random" style="width:50px; height:50px; border-radius:50%; margin-bottom:10px;">
                     <h3>${m.username}</h3>
@@ -771,11 +819,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         };
 
-        draw(allMembers);
+        // Initial draw to show all members when the page loads.
+        draw();
 
-        document.getElementById('mem-search').addEventListener('keyup', (e) => {
-            const term = e.target.value.toLowerCase();
-            draw(allMembers.filter(m => m.username.toLowerCase().includes(term)));
+        // Add event listeners for the new search button and role filter.
+        searchBtn.addEventListener('click', draw);
+        roleFilter.addEventListener('change', draw);
+        searchInput.addEventListener('keyup', (e) => {
+            // We still allow 'Enter' key for convenience.
+            if (e.key === 'Enter') {
+                draw();
+            }
         });
     }
 
@@ -1046,10 +1100,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.openEditEventModal = (ev) => {
         document.getElementById('ev-id').value = ev.id;
         document.getElementById('ev-name').value = ev.name;
+        // <-- FIX: This line was missing -->
+        document.getElementById('ev-desc').value = ev.description || ''; 
         document.getElementById('ev-start').value = ev.start_date;
         document.getElementById('ev-end').value = ev.end_date;
         document.getElementById('ev-color').value = ev.color;
-        
+
         const delBtn = document.getElementById('btn-delete-event');
         if(state.user.role_id === 1) {
             if(delBtn) delBtn.classList.remove('hidden');
@@ -1262,6 +1318,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const payload = {
             project_id: state.currentProject,
             name: document.getElementById('ev-name').value,
+            // <-- FIX: This line was missing -->
+            description: document.getElementById('ev-desc').value,
             start_date: document.getElementById('ev-start').value,
             end_date: document.getElementById('ev-end').value,
             color: document.getElementById('ev-color').value
