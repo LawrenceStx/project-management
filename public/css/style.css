@@ -369,3 +369,8 @@ input, select, textarea {
     font-weight: bold;
     border-radius: 4px;
 }
+
+.gantt-avatar-more {
+    background-color: #6b7280 !important; /* A neutral gray color */
+    font-size: 9px !important;
+}
