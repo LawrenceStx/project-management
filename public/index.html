@@ -124,8 +124,8 @@
     </div>
 </div>
 
+<!-- Create Task Modal -->
 <div id="createTaskModal" class="modal-overlay">
-    <!-- Added 'modal-lg' class here for width -->
     <div class="modal-box modal-lg fade-up">
         <div class="flex-between mb-2" style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
             <div style="display:flex; align-items:center; gap:10px;">
@@ -138,44 +138,54 @@
             <button class="btn-icon" onclick="closeModal('createTaskModal')"><i class="bi bi-x-lg"></i></button>
         </div>
 
-        <form id="create-task-form">
-            <!-- ROW 1: Name and Assignee -->
+        <!-- NOTE: Enctype isn't strictly needed for JS Fetch but good for semantics -->
+        <form id="create-task-form" enctype="multipart/form-data">
+            <!-- ROW 1 -->
             <div class="grid-2">
                 <div class="form-group">
                     <label>Task Title</label>
                     <input type="text" id="ct-name" placeholder="e.g. Research payment flow" required>
                 </div>
                 <div class="form-group">
-                    <label>Assign To</label>
-                    <select id="ct-assignee"></select>
+                    <label>Assign To <small>(Hold Ctrl/Cmd to select multiple)</small></label>
+                    <!-- UPDATED: Added multiple attribute and adjusted height -->
+                    <div id="ct-assignee-container" class="assignee-selection-box">
+                        <small>Loading...</small>
+                    </div>
+
                 </div>
             </div>
 
-            <!-- ROW 2: Due Date and External Link -->
+            <!-- ROW 2 -->
             <div class="grid-2">
                  <div class="form-group">
                     <label>Due Date</label>
                     <input type="date" id="ct-due" required>
                 </div>
                 <div class="form-group">
-                    <label>External Link <small style="color:#999; font-weight:400">(Optional)</small></label>
-                    <input type="url" id="ct-link">
+                    <label>Attach File <small>(PDF, Word - Max 5MB)</small></label>
+                    <!-- UPDATED: File Input -->
+                    <input type="file" id="ct-file" accept=".pdf,.doc,.docx" style="padding: 9px; background: white;">
                 </div>
             </div>
 
-            <!-- ROW 3: YouTube (Full Width) -->
-            <div class="form-group">
-                <label>YouTube URL <small style="color:#999; font-weight:400">(Optional - Embeds Video)</small></label>
-                <input type="url" id="ct-youtube">
+            <!-- ROW 3 -->
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>External Link <small>(Optional)</small></label>
+                    <input type="url" id="ct-link" placeholder="https://docs.google.com/...">
+                </div>
+                <div class="form-group">
+                    <label>YouTube URL <small>(Optional)</small></label>
+                    <input type="url" id="ct-youtube">
+                </div>
             </div>
 
-            <!-- ROW 4: Description (Large) -->
             <div class="form-group">
                 <label>Description</label>
                 <textarea id="ct-desc" placeholder="Describe the requirements..."></textarea>
             </div>
 
-            <!-- Footer Buttons -->
             <div class="flex-between" style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 10px;">
                 <button type="button" class="btn btn-outline" onclick="closeModal('createTaskModal')">Cancel</button>
                 <button type="submit" class="btn btn-primary" style="padding-left: 30px; padding-right: 30px;">Save Task</button>
@@ -184,15 +194,12 @@
     </div>
 </div>
 
+<!-- Edit Task Modal -->
 <div id="editTaskModal" class="modal-overlay">
     <div class="modal-box modal-lg fade-up">
-        
-        <!-- Header -->
         <div class="flex-between modal-header">
             <div style="display:flex; align-items:center; gap:10px;">
-                <div class="stat-icon blue" style="width:40px; height:40px; font-size:1.2rem;">
-                    <i class="bi bi-pencil-square"></i>
-                </div>
+                <div class="stat-icon blue" style="width:40px; height:40px; font-size:1.2rem;"><i class="bi bi-pencil-square"></i></div>
                 <div>
                     <h3 style="margin:0;">Edit Task</h3>
                     <small style="color:var(--text-muted)">Update task details</small>
@@ -201,51 +208,107 @@
             <button class="btn-icon" onclick="closeModal('editTaskModal')"><i class="bi bi-x-lg"></i></button>
         </div>
 
-        <form id="edit-task-form">
+        <form id="edit-task-form" enctype="multipart/form-data">
             <input type="hidden" id="et-id">
-
-            <!-- ROW 1: Name and Assignee -->
             <div class="grid-2">
                 <div class="form-group">
                     <label>Task Title</label>
                     <input type="text" id="et-name" required>
                 </div>
                 <div class="form-group">
-                    <label>Assign To</label>
-                    <select id="et-assignee"></select>
+                    <label>Assign To <small>(Hold Ctrl/Cmd to select multiple)</small></label>
+                    <!-- UPDATED: Multiple -->
+                    <div id="et-assignee-container" class="assignee-selection-box">
+                        <small>Loading...</small>
+                    </div>
                 </div>
             </div>
 
-            <!-- ROW 2: Due Date and External Link -->
             <div class="grid-2">
                  <div class="form-group">
                     <label>Due Date</label>
                     <input type="date" id="et-due" required>
                 </div>
                 <div class="form-group">
-                    <label>External Link <small style="color:#999; font-weight:400">(Optional)</small></label>
-                    <input type="url" id="et-link">
+                    <label>Update File <small>(Overwrites existing)</small></label>
+                    <!-- UPDATED: File Input -->
+                    <input type="file" id="et-file" accept=".pdf,.doc,.docx" style="padding: 9px; background: white;">
+                    <small id="et-current-file-display" style="color: var(--primary);">Current file: None</small>
                 </div>
             </div>
 
-            <!-- ROW 3: YouTube (Full Width) -->
-            <div class="form-group">
-                <label>YouTube URL <small style="color:#999; font-weight:400">(Optional)</small></label>
-                <input type="url" id="et-youtube">
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>External Link</label>
+                    <input type="url" id="et-link">
+                </div>
+                <div class="form-group">
+                    <label>YouTube URL</label>
+                    <input type="url" id="et-youtube">
+                </div>
             </div>
 
-            <!-- ROW 4: Description (Large) -->
             <div class="form-group">
                 <label>Description</label>
                 <textarea id="et-desc" style="min-height: 150px; resize: vertical;"></textarea>
             </div>
 
-            <!-- Footer Buttons -->
             <div class="flex-between modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('editTaskModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary" style="padding-left: 30px; padding-right: 30px;">Save Changes</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- View Task Modal (Read Only) -->
+<div id="viewTaskModal" class="modal-overlay">
+    <div class="modal-box modal-lg fade-up">
+        <div class="flex-between mb-2" style="border-bottom: 1px solid #eee; padding-bottom: 15px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div class="stat-icon purple" style="width:40px; height:40px; font-size:1.2rem;">
+                    <i class="bi bi-eye"></i>
+                </div>
+                <div>
+                    <h3 style="margin:0;" id="vt-title">Task Title</h3>
+                    <small style="color:var(--text-muted)">Task Details</small>
+                </div>
+            </div>
+            <button class="btn-icon" onclick="closeModal('viewTaskModal')"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <label style="font-weight:600; font-size:0.85rem; color:#888;">Assigned To</label>
+                <div id="vt-assignees" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:15px;"></div>
+            </div>
+            <div>
+                 <label style="font-weight:600; font-size:0.85rem; color:#888;">Due Date</label>
+                 <div id="vt-due" style="font-size:1rem; font-weight:500;"></div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <label style="font-weight:600; font-size:0.85rem; color:#888;">Attachment</label>
+                <div id="vt-file"></div>
+            </div>
+            <div>
+                <label style="font-weight:600; font-size:0.85rem; color:#888;">External Link</label>
+                <div id="vt-link"></div>
+            </div>
+        </div>
+
+        <div style="margin-top:10px;">
+            <label style="font-weight:600; font-size:0.85rem; color:#888;">Description</label>
+            <div id="vt-desc" class="formatted-text" style="background:#f9fafb; padding:15px; border-radius:10px; border:1px solid #eee; min-height:100px;"></div>
+        </div>
+        
+        <div id="vt-video" style="margin-top:20px;"></div>
+
+        <div class="modal-footer" style="text-align:right;">
+            <button class="btn btn-outline" onclick="closeModal('viewTaskModal')">Close</button>
+        </div>
     </div>
 </div>
 

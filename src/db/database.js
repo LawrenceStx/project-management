@@ -114,6 +114,24 @@ const initDb = () => {
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )`);
 
+        // 9. Event Assignees (NEW)
+        db.run(`CREATE TABLE IF NOT EXISTS event_assignees (
+            event_id INTEGER,
+            user_id INTEGER,
+            PRIMARY KEY (event_id, user_id),
+            FOREIGN KEY (event_id) REFERENCES project_events(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`);
+
+        // --- NEW: Task Assignees (For Multi-Person) ---
+        db.run(`CREATE TABLE IF NOT EXISTS task_assignees (
+            task_id INTEGER,
+            user_id INTEGER,
+            PRIMARY KEY (task_id, user_id),
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`);
+
         // ============================================================
         // SAFE MIGRATION: Add new columns if they don't exist
         // ============================================================
@@ -130,6 +148,10 @@ const initDb = () => {
 
         addColumn('tasks', 'external_link', 'TEXT');
         addColumn('tasks', 'youtube_link', 'TEXT');
+
+        addColumn('tasks', 'attachment_path', 'TEXT'); 
+        addColumn('tasks', 'attachment_name', 'TEXT');
+        
         addColumn('project_logs', 'log_date', 'DATE');
         // ============================================================
 

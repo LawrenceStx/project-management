@@ -12,6 +12,51 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// Ensure upload directories exist
+const uploadDir = path.join(__dirname, '../../public/uploads');
+if (!fs.existsSync(uploadDir)){
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// 1. Storage for DB Restore (Existing)
+const storageRestore = multer.diskStorage({
+    destination: function (req, file, cb) { cb(null, 'data/') },
+    filename: function (req, file, cb) { cb(null, 'apex_restore.db') }
+});
+const uploadRestore = multer({ storage: storageRestore });
+
+// 2. Storage for Task Attachments (NEW)
+const storageTasks = multer.diskStorage({
+    destination: function (req, file, cb) { 
+        cb(null, 'public/uploads/') 
+    },
+    filename: function (req, file, cb) {
+        // Unique filename: timestamp-originalName
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+// Filter to allow Docs and PDF
+const fileFilter = (req, file, cb) => {
+    const allowed = [
+        'application/pdf', 
+        'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    if (allowed.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(null, false); // Reject file
+    }
+};
+
+const uploadTask = multer({ 
+    storage: storageTasks, 
+    fileFilter: fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
 // Configure Upload Storage
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -143,8 +188,8 @@ router.delete('/announcements/:id', isAdmin, announcementController.deleteAnnoun
 
 router.delete('/tasks/:id', taskController.deleteTask);
 router.get('/projects/:projectId/tasks', taskController.getProjectTasks);
-router.post('/tasks', taskController.createTask);
-router.put('/tasks/:id', isAdmin, taskController.updateTaskDetails); // Full edit for Admin
+router.post('/tasks', uploadTask.single('attachment'), taskController.createTask);
+router.put('/tasks/:id', isAdmin, uploadTask.single('attachment'), taskController.updateTaskDetails); 
 router.put('/tasks/:id/status', taskController.updateTaskStatus);
 
 

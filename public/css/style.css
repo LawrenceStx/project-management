@@ -374,3 +374,52 @@ input, select, textarea {
     background-color: #6b7280 !important; /* A neutral gray color */
     font-size: 9px !important;
 }
+
+/* Better Multi-Select Styling */
+.assignee-selection-box {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 15px;
+    max-height: 180px; /* Taller area */
+    overflow-y: auto;
+    background: #f9fafb;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); /* Responsive Grid */
+    gap: 10px;
+}
+
+.assignee-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    font-size: 0.9rem;
+}
+
+.assignee-option:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+/* When the checkbox inside is checked */
+.assignee-option:has(input:checked) {
+    background-color: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary-dark);
+    font-weight: 600;
+}
+
+.assignee-option input[type="checkbox"] {
+    margin: 0;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}

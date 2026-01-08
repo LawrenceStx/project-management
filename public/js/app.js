@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const res = await fetch(`/api/projects/${projectId}/tasks`);
             let tasks = await res.json();
             const today = new Date();
-            today.setHours(0,0,0,0); // Normalize today
+            today.setHours(0,0,0,0); 
 
             // 1. Filter Logic
             if (state.taskFilter === 'Overdue') {
@@ -492,11 +492,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 2. Search Logic
             if (state.taskSearch) {
                 const term = state.taskSearch;
-                tasks = tasks.filter(t => 
-                    t.name.toLowerCase().includes(term) || 
-                    (t.description && t.description.toLowerCase().includes(term)) ||
-                    (t.assigned_to_name && t.assigned_to_name.toLowerCase().includes(term))
-                );
+                tasks = tasks.filter(t => {
+                    const assigneeNames = t.assignees ? t.assignees.map(a => a.username.toLowerCase()).join(' ') : '';
+                    return t.name.toLowerCase().includes(term) || 
+                           (t.description && t.description.toLowerCase().includes(term)) ||
+                           assigneeNames.includes(term);
+                });
             }
 
             // 3. Sort Logic
@@ -518,48 +519,137 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             tasks.forEach(t => {
                 // Determine Overdue Status
-                const due = new Date(t.due_date);
-                const isOverdue = t.status !== 'Done' && due < today;
-                
-                // Add 'overdue' class if applicable, else standard status class
+                const dueDateObj = new Date(t.due_date);
+                const todayObj = new Date();
+
+                dueDateObj.setHours(0,0,0,0);
+                todayObj.setHours(0,0,0,0);
+
+                const isOverdue = t.status !== 'Done' && dueDateObj < todayObj;
                 const cardClass = isOverdue ? 'overdue' : (t.status === 'In Progress' ? 'status-In' : `status-${t.status}`);
                 
-                let vid = '';
-                if(t.youtube_link) {
-                    const match = t.youtube_link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
-                    if (match && match[2].length === 11) vid = `<div class="video-container"><iframe src="//www.youtube.com/embed/${match[2]}" allowfullscreen></iframe></div>`;
+                // --- FIX 1: Generate Avatars ---
+                let assigneeHtml = '<div class="gantt-avatar-stack" style="margin-top:10px;">';
+                if (t.assignees && t.assignees.length > 0) {
+                    // Show up to 3 avatars
+                    t.assignees.slice(0,3).forEach(u => {
+                        assigneeHtml += `<div class="gantt-avatar" style="background:#3b82f6;" title="${u.username}">${u.username.charAt(0).toUpperCase()}</div>`;
+                    });
+                    if(t.assignees.length > 3) assigneeHtml += `<div class="gantt-avatar gantt-avatar-more">+${t.assignees.length - 3}</div>`;
+                } else {
+                    assigneeHtml += `<small style="color:#999; font-style:italic;">Unassigned</small>`;
                 }
-                let link = t.external_link ? `<a href="${t.external_link}" target="_blank" class="task-link-btn"><i class="bi bi-link-45deg"></i> Open Link</a>` : '';
-                const assigneeHtml = t.assigned_to_name ? `<div style="display:flex; align-items:center; gap:5px; margin-top:10px; font-size:0.85rem; color:#666;"><i class="bi bi-person-circle"></i> ${t.assigned_to_name}</div>` : `<div style="margin-top:10px; font-size:0.85rem; color:#999;">Unassigned</div>`;
+                assigneeHtml += '</div>';
+
+                // --- FIX 2: File Icon ---
+                let fileIcon = '';
+                if(t.attachment_path) {
+                    fileIcon = `<span title="Has Attachment" style="color:var(--primary); font-size:1.1rem;"><i class="bi bi-paperclip"></i></span>`;
+                }
+
+                // Safe quote escape for onclick
+                const taskJson = JSON.stringify(t).replace(/'/g, "&#39;");
 
                 const div = document.createElement('div');
                 div.className = `card task-card fade-up ${cardClass}`;
                 div.innerHTML = `
-                    <div>
+                    <div style="flex:1;">
                         <div class="flex-between">
                             <span class="task-status-badge ${cardClass}">${isOverdue ? 'Overdue' : t.status}</span>
-                            ${isAdmin ? `<div style="display:flex; gap:5px;"><button class="btn-icon" onclick='openEditTask(${JSON.stringify(t).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button><button class="btn-icon" style="color:#ef4444" onclick="deleteTask(${t.id})"><i class="bi bi-trash"></i></button></div>` : ''}
+                            <div style="display:flex; gap:5px;">
+                                ${fileIcon}
+                                <!-- NEW VIEW BUTTON -->
+                                <button class="btn-icon" title="View Details" onclick='openViewTask(${taskJson})'><i class="bi bi-eye"></i></button>
+                                ${isAdmin ? `<button class="btn-icon" title="Edit" onclick='openEditTask(${taskJson})'><i class="bi bi-pencil"></i></button>
+                                <button class="btn-icon" title="Delete" style="color:#ef4444" onclick="deleteTask(${t.id})"><i class="bi bi-trash"></i></button>` : ''}
+                            </div>
                         </div>
                         <h4 class="mt-2 ${isOverdue ? 'overdue-text' : ''}" style="font-size:1.1rem; margin-bottom:10px;">${t.name}</h4>
-                        <p class="preserve-text" style="color:var(--text-muted); font-size:0.9rem; margin-bottom:15px;">${t.description||'No description'}</p>
-                        ${link}
-                        ${vid}
-                        ${assigneeHtml}
+                        <p class="preserve-text" style="color:var(--text-muted); font-size:0.9rem; margin-bottom:15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                            ${t.description||'No description'}
+                        </p>
                     </div>
-                    <div style="margin-top:20px; padding-top:15px; border-top:1px solid rgba(0,0,0,0.05);" class="flex-between">
-                        <small style="color:${isOverdue ? '#ef4444' : 'var(--text-light)'}; font-weight:${isOverdue?700:400}">
-                            <i class="bi bi-calendar"></i> ${t.due_date||'--'}
-                        </small>
-                        <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:auto; margin:0; padding:2px 8px; font-size:0.8rem;">
-                            <option value="Todo" ${t.status==='Todo'?'selected':''}>Todo</option>
-                            <option value="In Progress" ${t.status==='In Progress'?'selected':''}>In Progress</option>
-                            <option value="Done" ${t.status==='Done'?'selected':''}>Done</option>
-                        </select>
+                    
+                    <div style="margin-top:auto; padding-top:15px; border-top:1px solid rgba(0,0,0,0.05);">
+                        <div class="flex-between">
+                            ${assigneeHtml}
+                            <small style="color:${isOverdue ? '#ef4444' : 'var(--text-light)'}; font-weight:${isOverdue?700:400}">
+                                <i class="bi bi-calendar"></i> ${t.due_date||'--'}
+                            </small>
+                        </div>
+                        
+                        <div class="mt-2">
+                            <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:100%; margin:0; padding:5px; font-size:0.85rem; border:1px solid #eee; border-radius:6px; cursor:pointer;">
+                                <option value="Todo" ${t.status==='Todo'?'selected':''}>To Do</option>
+                                <option value="In Progress" ${t.status==='In Progress'?'selected':''}>In Progress</option>
+                                <option value="Done" ${t.status==='Done'?'selected':''}>Done</option>
+                            </select>
+                        </div>
                     </div>
                 `;
                 container.appendChild(div);
             });
         } catch(e) { console.error(e); }
+    }
+
+    function createTaskCardHTML(task) {
+        // 1. Generate Assignee Avatars
+        let assigneeHtml = '<div class="gantt-avatar-stack" style="margin-top:0;">';
+        if (task.assignees && task.assignees.length > 0) {
+            task.assignees.forEach(u => {
+                // Simple avatar circle
+                assigneeHtml += `<div class="gantt-avatar" style="background:#3b82f6;" title="${u.username}">
+                    ${u.username.charAt(0).toUpperCase()}
+                </div>`;
+            });
+        } else {
+            assigneeHtml += `<small style="color:#999">Unassigned</small>`;
+        }
+        assigneeHtml += '</div>';
+
+        // 2. File Download Button
+        let fileHtml = '';
+        if (task.attachment_path) {
+            fileHtml = `<a href="${task.attachment_path}" target="_blank" class="task-link-btn" style="color:#e11d48; margin-right:10px;">
+                <i class="bi bi-file-earmark-pdf-fill"></i> ${task.attachment_name || 'View File'}
+            </a>`;
+        }
+
+        // 3. Status Class Logic (Existing)
+        const statusClass = `status-${task.status.split(' ')[0]}`;
+        const overdueClass = (new Date(task.due_date) < new Date() && task.status !== 'Done') ? 'overdue' : '';
+        const overdueText = overdueClass ? '<span class="overdue-text"><i class="bi bi-exclamation-circle"></i> Overdue</span>' : '';
+
+        return `
+        <div class="task-card ${overdueClass}" draggable="true" ondragstart="drag(event)" id="task-${task.id}">
+            <div class="flex-between">
+                <span class="task-status-badge ${statusClass}">${task.status}</span>
+                <div style="display:flex; gap:5px;">
+                    ${overdueText}
+                    <button class="btn-icon" onclick="openEditTaskModal(${task.id})"><i class="bi bi-pencil"></i></button>
+                    <button class="btn-icon" onclick="deleteTask(${task.id})"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>
+            <h4 style="margin: 10px 0;">${task.name}</h4>
+            <div style="font-size:0.9rem; color:var(--text-light); margin-bottom:10px;" class="formatted-text">${task.description || ''}</div>
+            
+            <!-- Links & Files -->
+            <div style="margin-bottom:10px;">
+                ${fileHtml}
+                ${task.external_link ? `<a href="${task.external_link}" target="_blank" class="task-link-btn"><i class="bi bi-link-45deg"></i> Link</a>` : ''}
+            </div>
+            
+            <!-- Embeds -->
+            ${task.youtube_link ? getYoutubeEmbed(task.youtube_link) : ''}
+            
+            <div class="flex-between mt-2" style="border-top:1px solid #f3f4f6; padding-top:10px;">
+                <div style="display:flex; align-items:center; gap:5px; font-size:0.85rem; color:var(--text-muted);">
+                    <i class="bi bi-calendar"></i> ${task.due_date}
+                </div>
+                ${assigneeHtml}
+            </div>
+        </div>
+        `;
     }
 
     async function renderGanttPage() {
@@ -1098,18 +1188,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Task Actions ---
     window.openCreateTaskModal = async () => {
-        const res = await fetch('/api/admin/users');
-        const users = await res.json();
-        const select = document.getElementById('ct-assignee');
-        if(select) {
-            select.innerHTML = '<option value="">Unassigned</option>';
+        const container = document.getElementById('ct-assignee-container');
+        container.innerHTML = '<small style="color:#666;">Loading members...</small>';
+
+        try {
+            const res = await fetch(`/api/projects/${state.currentProject}/members/stats`);
+            const users = await res.json();
+            
+            container.innerHTML = ''; // Clear loading
+            
+            if(users.length === 0) {
+                container.innerHTML = '<small>No members in project.</small>';
+                return;
+            }
+
             users.forEach(u => {
-                const opt = document.createElement('option');
-                opt.value = u.id;
-                opt.textContent = u.username;
-                select.appendChild(opt);
+                // Create Checkbox Card
+                const label = document.createElement('label');
+                label.className = 'assignee-option';
+                label.innerHTML = `
+                    <input type="checkbox" name="ct-assignee-chk" value="${u.id}">
+                    <span>${u.username}</span>
+                `;
+                container.appendChild(label);
             });
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = '<small style="color:red">Error loading list</small>';
         }
+        
         openModal('createTaskModal');
     };
 
@@ -1501,67 +1608,189 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadProjects();
     });
 
-    // Create Task Form
-    const ctForm = document.getElementById('create-task-form');
-    if(ctForm) ctForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        await fetch('/api/tasks', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                project_id: state.currentProject,
-                name: document.getElementById('ct-name').value,
-                description: document.getElementById('ct-desc').value,
-                external_link: document.getElementById('ct-link').value,
-                youtube_link: document.getElementById('ct-youtube').value,
-                due_date: document.getElementById('ct-due').value,
-                assigned_to_id: document.getElementById('ct-assignee').value
-            })
+    const editTaskForm = document.getElementById('edit-task-form');
+    if (editTaskForm) {
+        const newForm = editTaskForm.cloneNode(true);
+        editTaskForm.parentNode.replaceChild(newForm, editTaskForm);
+
+        newForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const taskId = document.getElementById('et-id').value;
+            
+            // --- NEW: Gather Checkbox Values ---
+            const checkboxes = document.querySelectorAll('input[name="et-assignee-chk"]:checked');
+            const selectedAssignees = Array.from(checkboxes).map(cb => cb.value);
+
+            const formData = new FormData();
+            formData.append('name', document.getElementById('et-name').value);
+            formData.append('description', document.getElementById('et-desc').value);
+            formData.append('due_date', document.getElementById('et-due').value);
+            formData.append('external_link', document.getElementById('et-link').value);
+            formData.append('youtube_link', document.getElementById('et-youtube').value);
+            formData.append('assigneeIds', JSON.stringify(selectedAssignees));
+
+            const fileInput = document.getElementById('et-file');
+            if (fileInput.files[0]) {
+                formData.append('attachment', fileInput.files[0]);
+            }
+
+            try {
+                const res = await fetch(`/api/tasks/${taskId}`, { method: 'PUT', body: formData });
+                if (res.ok) {
+                    closeModal('editTaskModal');
+                    if(typeof renderTasksPage === 'function') renderTasksPage(); 
+                } else {
+                    alert("Failed to update task.");
+                }
+            } catch (err) { console.error(err); }
         });
-        closeModal('createTaskModal');
-    });
+    }
+
+    const createTaskForm = document.getElementById('create-task-form');
+    if (createTaskForm) {
+        createTaskForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const projectId = state.currentProject; // Safer than getting DOM element
+
+            // 1. Gather Checkbox Values (The Fix)
+            const checkboxes = document.querySelectorAll('input[name="ct-assignee-chk"]:checked');
+            const selectedAssignees = Array.from(checkboxes).map(cb => cb.value);
+
+            // 2. Build FormData
+            const formData = new FormData();
+            formData.append('project_id', projectId);
+            formData.append('name', document.getElementById('ct-name').value);
+            formData.append('description', document.getElementById('ct-desc').value);
+            formData.append('due_date', document.getElementById('ct-due').value);
+            formData.append('external_link', document.getElementById('ct-link').value);
+            formData.append('youtube_link', document.getElementById('ct-youtube').value);
+            
+            // Send Array as JSON String
+            formData.append('assigneeIds', JSON.stringify(selectedAssignees));
+
+            // 3. Handle File
+            const fileInput = document.getElementById('ct-file');
+            if (fileInput.files[0]) {
+                formData.append('attachment', fileInput.files[0]);
+            }
+
+            try {
+                const res = await fetch('/api/tasks', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (res.ok) {
+                    closeModal('createTaskModal');
+                    document.getElementById('create-task-form').reset();
+                    // Clear the checkboxes manually since reset() doesn't always clear dynamic inputs
+                    document.getElementById('ct-assignee-container').innerHTML = ''; 
+                    loadPage('tasks');
+                } else {
+                    const err = await res.json();
+                    alert('Failed to create task: ' + (err.error || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    }
 
     window.openEditTask = async (task) => {
         document.getElementById('et-id').value = task.id;
         document.getElementById('et-name').value = task.name;
         document.getElementById('et-desc').value = task.description || '';
+        document.getElementById('et-due').value = task.due_date;
         document.getElementById('et-link').value = task.external_link || '';
         document.getElementById('et-youtube').value = task.youtube_link || '';
-        document.getElementById('et-due').value = task.due_date;
 
-        // Load Assignees
-        const res = await fetch('/api/admin/users');
-        const users = await res.json();
-        const sel = document.getElementById('et-assignee');
-        sel.innerHTML = '<option value="">Unassigned</option>';
-        users.forEach(u => {
-            const op = document.createElement('option');
-            op.value = u.id;
-            op.innerText = u.username;
-            if(u.id == task.assigned_to_id) op.selected = true;
-            sel.appendChild(op);
-        });
+        // File Display
+        const fileDisplay = document.getElementById('et-current-file-display');
+        if(task.attachment_path) {
+            fileDisplay.innerHTML = `<a href="${task.attachment_path}" target="_blank">Current: ${task.attachment_name}</a>`;
+        } else {
+            fileDisplay.innerText = "Current: None";
+        }
+
+        // --- NEW: Populate Checkbox Grid ---
+        const container = document.getElementById('et-assignee-container');
+        container.innerHTML = '<small>Loading...</small>'; 
+        
+        try {
+            const res = await fetch(`/api/projects/${state.currentProject}/members/stats`);
+            const members = await res.json();
+            
+            container.innerHTML = ''; // Clear loading
+
+            // Get existing assignee IDs
+            const assignedIds = new Set((task.assignees || []).map(a => parseInt(a.id)));
+
+            members.forEach(user => {
+                const isChecked = assignedIds.has(parseInt(user.id));
+                const label = document.createElement('label');
+                label.className = 'assignee-option';
+                label.innerHTML = `
+                    <input type="checkbox" name="et-assignee-chk" value="${user.id}" ${isChecked ? 'checked' : ''}>
+                    <span>${user.username}</span>
+                `;
+                container.appendChild(label);
+            });
+        } catch (e) {
+            console.error("Error loading members:", e);
+            container.innerHTML = '<small>Error loading members</small>';
+        }
+
         openModal('editTaskModal');
     };
 
-    const etForm = document.getElementById('edit-task-form');
-    if(etForm) etForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const id = document.getElementById('et-id').value;
-        await fetch(`/api/tasks/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                name: document.getElementById('et-name').value,
-                description: document.getElementById('et-desc').value,
-                external_link: document.getElementById('et-link').value,
-                youtube_link: document.getElementById('et-youtube').value,
-                due_date: document.getElementById('et-due').value,
-                assigned_to_id: document.getElementById('et-assignee').value
-            })
-        });
-        closeModal('editTaskModal');
-    });
+    window.openViewTask = (task) => {
+        document.getElementById('vt-title').innerText = task.name;
+        document.getElementById('vt-due').innerText = task.due_date;
+        
+        // Description (with links/images)
+        document.getElementById('vt-desc').innerHTML = formatAnnouncementText(task.description || "No description provided.");
+
+        // Assignees
+        const assigneeBox = document.getElementById('vt-assignees');
+        assigneeBox.innerHTML = '';
+        if(task.assignees && task.assignees.length > 0) {
+            task.assignees.forEach(u => {
+                assigneeBox.innerHTML += `<span class="task-status-badge status-Todo" style="font-size:0.85rem;">${u.username}</span>`;
+            });
+        } else {
+            assigneeBox.innerHTML = '<span style="color:#999">Unassigned</span>';
+        }
+
+        // File
+        const fileBox = document.getElementById('vt-file');
+        if(task.attachment_path) {
+            fileBox.innerHTML = `<a href="${task.attachment_path}" target="_blank" class="btn btn-outline" style="padding:5px 10px; font-size:0.85rem; color:var(--primary); border-color:var(--primary);">
+                <i class="bi bi-file-earmark-arrow-down"></i> ${task.attachment_name || 'Download File'}
+            </a>`;
+        } else {
+            fileBox.innerHTML = '<span style="color:#999">-</span>';
+        }
+
+        // Link
+        const linkBox = document.getElementById('vt-link');
+        if(task.external_link) {
+            linkBox.innerHTML = `<a href="${task.external_link}" target="_blank" style="color:var(--accent); text-decoration:underline;">Open Link <i class="bi bi-box-arrow-up-right"></i></a>`;
+        } else {
+            linkBox.innerHTML = '<span style="color:#999">-</span>';
+        }
+
+        // YouTube
+        const vidBox = document.getElementById('vt-video');
+        vidBox.innerHTML = '';
+        if(task.youtube_link) {
+             const match = task.youtube_link.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/);
+             if (match && match[2].length === 11) {
+                 vidBox.innerHTML = `<div class="video-container"><iframe src="https://www.youtube.com/embed/${match[2]}" frameborder="0" allowfullscreen></iframe></div>`;
+             }
+        }
+
+        openModal('viewTaskModal');
+    };
 
     // Manage Members Form
     const mmForm = document.getElementById('manage-members-form');
