@@ -1,8 +1,9 @@
 const db = require('../db/database');
 const fs = require('fs');
 const path = require('path');
+const emailService = require('../services/emailService'); // Import Email Service
 
-// Helper to wrap DB calls in Promises (cleaner async/await)
+// Helper for Promisified DB
 const dbQuery = (sql, params = []) => {
     return new Promise((resolve, reject) => {
         db.all(sql, params, (err, rows) => {
@@ -21,43 +22,39 @@ const dbRun = (sql, params = []) => {
     });
 };
 
-// --- GET TASKS (The Fix for "Unassigned") ---
+// --- GET TASKS (Filtered by Role) ---
 exports.getProjectTasks = async (req, res) => {
     const { projectId } = req.params;
+    const userId = req.session.user.id;
+    const roleId = req.session.user.role_id; // 1 = Admin, 2 = Member
     
     try {
-        // 1. Fetch Basic Task Data
-        const tasks = await dbQuery(`
-            SELECT t.*, u.username as owner_name 
+        let sql = `
+            SELECT t.*, u.username as owner_name, u.email as owner_email
             FROM tasks t 
             LEFT JOIN users u ON t.assigned_to_id = u.id 
-            WHERE t.project_id = ? ORDER BY t.due_date ASC
-        `, [projectId]);
-
-        if (tasks.length === 0) return res.json([]);
-
-        // 2. Fetch ALL Assignees for these tasks in one simple query
-        // This avoids complex JOIN aggregation bugs
-        const taskIds = tasks.map(t => t.id).join(',');
+            WHERE t.project_id = ? 
+        `;
         
-        const assignees = await dbQuery(`
-            SELECT ta.task_id, u.id, u.username 
-            FROM task_assignees ta
-            JOIN users u ON ta.user_id = u.id
-            WHERE ta.task_id IN (${taskIds})
-        `);
+        const params = [projectId];
 
-        // 3. Merge in Javascript (100% reliable)
-        const tasksWithAssignees = tasks.map(task => {
-            // Find all rows in 'assignees' that match this task_id
-            task.assignees = assignees.filter(a => a.task_id === task.id).map(a => ({
-                id: a.id,
-                username: a.username
-            }));
-            return task;
-        });
+        // LOGIC: If Member (Role 2), ONLY show tasks assigned to them
+        if (roleId === 2) {
+            sql += ` AND t.assigned_to_id = ?`;
+            params.push(userId);
+        }
 
-        res.json(tasksWithAssignees);
+        sql += ` ORDER BY t.due_date ASC`;
+
+        const tasks = await dbQuery(sql, params);
+
+        // Format for frontend (Frontend expects 'assignees' array even if it's just 1 person)
+        const formattedTasks = tasks.map(t => ({
+            ...t,
+            assignees: t.owner_name ? [{ id: t.assigned_to_id, username: t.owner_name }] : []
+        }));
+
+        res.json(formattedTasks);
 
     } catch (err) {
         console.error("Get Tasks Error:", err);
@@ -65,10 +62,11 @@ exports.getProjectTasks = async (req, res) => {
     }
 };
 
-// --- CREATE TASK ---
+// --- CREATE TASK (Duplicate for each Assignee) ---
 exports.createTask = async (req, res) => {
     const { project_id, name, description, due_date, external_link, youtube_link, assigneeIds } = req.body;
     
+    // 1. Handle File Upload (Done once, path shared across duplicates)
     let attachmentPath = null;
     let attachmentName = null;
     if (req.file) {
@@ -77,26 +75,57 @@ exports.createTask = async (req, res) => {
     }
 
     try {
-        // Insert Task
-        const result = await dbRun(`
-            INSERT INTO tasks (project_id, name, description, due_date, status, external_link, youtube_link, attachment_path, attachment_name) 
-            VALUES (?, ?, ?, ?, 'Todo', ?, ?, ?, ?)
-        `, [project_id, name, description, due_date, external_link, youtube_link, attachmentPath, attachmentName]);
-        
-        const taskId = result.lastID;
-
-        // Insert Assignees
-        if (assigneeIds) {
-            const ids = JSON.parse(assigneeIds); // Expecting JSON string from frontend
-            if (Array.isArray(ids) && ids.length > 0) {
-                const placeholders = ids.map(() => '(?, ?)').join(',');
-                const values = ids.flatMap(uid => [taskId, uid]);
-                await dbRun(`INSERT INTO task_assignees (task_id, user_id) VALUES ${placeholders}`, values);
-            }
+        // 2. Parse Assignees
+        let userIds = [];
+        try {
+            userIds = JSON.parse(assigneeIds);
+        } catch (e) {
+            // If strictly one ID coming as string
+            userIds = [assigneeIds];
         }
 
+        // If no one assigned, assign to Creator or leave NULL (logic for just 1 task)
+        if (!userIds || userIds.length === 0) {
+            await dbRun(`
+                INSERT INTO tasks (project_id, name, description, due_date, status, external_link, youtube_link, attachment_path, attachment_name) 
+                VALUES (?, ?, ?, ?, 'Todo', ?, ?, ?, ?)
+            `, [project_id, name, description, due_date, external_link, youtube_link, attachmentPath, attachmentName]);
+        } else {
+            // 3. Fetch Project Name (For Email Context)
+            const projectRow = await dbQuery("SELECT name FROM projects WHERE id = ?", [project_id]);
+            const projectName = projectRow[0] ? projectRow[0].name : "Project";
+
+            // 4. LOOP: Create Separate Task for EACH User
+            const promises = userIds.map(async (uid) => {
+                // A. Insert Task
+                await dbRun(`
+                    INSERT INTO tasks (project_id, assigned_to_id, name, description, due_date, status, external_link, youtube_link, attachment_path, attachment_name) 
+                    VALUES (?, ?, ?, ?, ?, 'Todo', ?, ?, ?, ?)
+                `, [project_id, uid, name, description, due_date, external_link, youtube_link, attachmentPath, attachmentName]);
+
+                // B. Fetch User Email for Notification
+                const userRow = await dbQuery("SELECT username, email FROM users WHERE id = ?", [uid]);
+                
+                // C. Send Brevo Email
+                if (userRow[0] && userRow[0].email) {
+                    // We don't await this so it doesn't slow down the UI
+                    emailService.sendTaskAssignmentEmail(
+                        userRow[0].email, 
+                        userRow[0].username, 
+                        name, 
+                        projectName, 
+                        due_date
+                    ).catch(err => console.error("Email failed for " + userRow[0].username, err));
+                }
+            });
+
+            // Wait for all DB insertions to finish
+            await Promise.all(promises);
+        }
+
+        // 5. Notify Socket
         req.io.emit('task:update', { projectId: project_id });
-        res.status(201).json({ message: 'Task created', taskId });
+        res.status(201).json({ message: 'Tasks created and emails sending...' });
 
     } catch (err) {
         console.error("Create Task Error:", err);
@@ -104,29 +133,35 @@ exports.createTask = async (req, res) => {
     }
 };
 
-// --- UPDATE TASK (The Fix for Edit/File/Members) ---
+// --- UPDATE TASK ---
+// Note: In this "Split" model, updating a task only updates THAT specific user's copy.
+// This is usually desired behavior once tasks are split (User A might have different notes than User B).
 exports.updateTaskDetails = async (req, res) => {
     const { id } = req.params;
     const { name, description, due_date, external_link, youtube_link, assigneeIds } = req.body;
 
-    console.log(`[UPDATE] Task ${id} | Files:`, req.file ? 'Yes' : 'No', '| Assignees:', assigneeIds);
-
     try {
-        // 1. Update Basic Fields
         let sql = `UPDATE tasks SET name=?, description=?, due_date=?, external_link=?, youtube_link=?`;
         let params = [name, description, due_date, external_link, youtube_link];
 
-        // 2. Handle File Overwrite
+        // 1. Handle File Update
         if (req.file) {
-            // Optional: Fetch old file to delete it (cleanup)
-            const oldTask = await dbQuery("SELECT attachment_path FROM tasks WHERE id = ?", [id]);
-            if (oldTask[0] && oldTask[0].attachment_path) {
-                const oldPath = path.join(__dirname, '../../public', oldTask[0].attachment_path);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-            }
-
             sql += `, attachment_path=?, attachment_name=?`;
             params.push('/uploads/' + req.file.filename, req.file.originalname);
+        }
+
+        // 2. Handle Re-assignment (Fix)
+        // Since tasks are now individual rows, if the user selects a person in the edit modal,
+        // we assume they want to move THIS task to that person.
+        if (assigneeIds) {
+            let userIds = [];
+            try { userIds = JSON.parse(assigneeIds); } catch(e) { userIds = [assigneeIds]; }
+            
+            // We take the first ID because we are editing a single task row
+            if (userIds.length > 0) {
+                sql += `, assigned_to_id=?`;
+                params.push(userIds[0]);
+            }
         }
 
         sql += ` WHERE id=?`;
@@ -134,20 +169,7 @@ exports.updateTaskDetails = async (req, res) => {
 
         await dbRun(sql, params);
 
-        // 3. Handle Assignees Update (Clear All -> Re-insert)
-        // Always delete existing first to avoid duplicates or stale data
-        await dbRun("DELETE FROM task_assignees WHERE task_id = ?", [id]);
-
-        if (assigneeIds) {
-            const ids = JSON.parse(assigneeIds);
-            if (Array.isArray(ids) && ids.length > 0) {
-                const placeholders = ids.map(() => '(?, ?)').join(',');
-                const values = ids.flatMap(uid => [id, uid]);
-                await dbRun(`INSERT INTO task_assignees (task_id, user_id) VALUES ${placeholders}`, values);
-            }
-        }
-
-        // 4. Notify Clients
+        // Notify Clients
         const taskRow = await dbQuery("SELECT project_id FROM tasks WHERE id = ?", [id]);
         if (taskRow[0]) {
             req.io.emit('task:update', { projectId: taskRow[0].project_id });
@@ -178,11 +200,10 @@ exports.deleteTask = async (req, res) => {
         const row = await dbQuery("SELECT project_id, attachment_path FROM tasks WHERE id = ?", [id]);
         if (!row[0]) return res.status(404).json({error: 'Not found'});
         
-        if (row[0].attachment_path) {
-            const p = path.join(__dirname, '../../public', row[0].attachment_path);
-            if (fs.existsSync(p)) fs.unlinkSync(p);
-        }
-
+        // Note: In a split system, we probably shouldn't delete the physical file 
+        // immediately if other tasks (duplicates) are using it. 
+        // For safety, we keep the file, or you need a check if other tasks use this path.
+        
         await dbRun("DELETE FROM tasks WHERE id = ?", [id]);
         req.io.emit('task:update', { projectId: row[0].project_id });
         res.json({ message: 'Deleted' });

@@ -518,73 +518,72 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(tasks.length === 0) { container.innerHTML = '<p class="span-4 text-center">No tasks found.</p>'; return; }
 
             tasks.forEach(t => {
-                // Determine Overdue Status
+                // 1. Determine Assignee (Since tasks are split, we look for the first one)
+                const assignee = t.assignees && t.assignees.length > 0 
+                    ? t.assignees[0] 
+                    : { username: 'Unassigned', id: null };
+                
+                const avatarLetter = assignee.username.charAt(0).toUpperCase();
+
+                // 2. Overdue Logic
                 const dueDateObj = new Date(t.due_date);
                 const todayObj = new Date();
-
                 dueDateObj.setHours(0,0,0,0);
                 todayObj.setHours(0,0,0,0);
-
-                const isOverdue = t.status !== 'Done' && dueDateObj < todayObj;
-                const cardClass = isOverdue ? 'overdue' : (t.status === 'In Progress' ? 'status-In' : `status-${t.status}`);
                 
-                // --- FIX 1: Generate Avatars ---
-                let assigneeHtml = '<div class="gantt-avatar-stack" style="margin-top:10px;">';
-                if (t.assignees && t.assignees.length > 0) {
-                    // Show up to 3 avatars
-                    t.assignees.slice(0,3).forEach(u => {
-                        assigneeHtml += `<div class="gantt-avatar" style="background:#3b82f6;" title="${u.username}">${u.username.charAt(0).toUpperCase()}</div>`;
-                    });
-                    if(t.assignees.length > 3) assigneeHtml += `<div class="gantt-avatar gantt-avatar-more">+${t.assignees.length - 3}</div>`;
-                } else {
-                    assigneeHtml += `<small style="color:#999; font-style:italic;">Unassigned</small>`;
-                }
-                assigneeHtml += '</div>';
+                const isOverdue = t.status !== 'Done' && dueDateObj < todayObj;
+                const overdueClass = isOverdue ? 'overdue' : ''; // Used for red border in CSS
+                const dateColor = isOverdue ? '#ef4444' : '#9ca3af';
 
-                // --- FIX 2: File Icon ---
-                let fileIcon = '';
-                if(t.attachment_path) {
-                    fileIcon = `<span title="Has Attachment" style="color:var(--primary); font-size:1.1rem;"><i class="bi bi-paperclip"></i></span>`;
-                }
-
-                // Safe quote escape for onclick
+                // 3. Prepare Data for OnClick
                 const taskJson = JSON.stringify(t).replace(/'/g, "&#39;");
 
+                // 4. Create Card Element
                 const div = document.createElement('div');
-                div.className = `card task-card fade-up ${cardClass}`;
+                div.className = `task-card fade-up ${overdueClass}`; 
                 div.innerHTML = `
-                    <div style="flex:1;">
-                        <div class="flex-between">
-                            <span class="task-status-badge ${cardClass}">${isOverdue ? 'Overdue' : t.status}</span>
-                            <div style="display:flex; gap:5px;">
-                                ${fileIcon}
-                                <!-- NEW VIEW BUTTON -->
-                                <button class="btn-icon" title="View Details" onclick='openViewTask(${taskJson})'><i class="bi bi-eye"></i></button>
-                                ${isAdmin ? `<button class="btn-icon" title="Edit" onclick='openEditTask(${taskJson})'><i class="bi bi-pencil"></i></button>
-                                <button class="btn-icon" title="Delete" style="color:#ef4444" onclick="deleteTask(${t.id})"><i class="bi bi-trash"></i></button>` : ''}
+                    <!-- Header: Title & Actions -->
+                    <div class="task-header">
+                        <h4 class="task-title" title="${t.name}">${t.name}</h4>
+                        <div class="task-actions">
+                            <i class="bi bi-eye" onclick='openViewTask(${taskJson})' title="View Details"></i>
+                            ${isAdmin ? `
+                                <i class="bi bi-pencil-square" onclick='openEditTask(${taskJson})' title="Edit"></i>
+                                <i class="bi bi-trash delete-btn" onclick="deleteTask(${t.id})" title="Delete"></i>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Body: Description & Attachment Indicator -->
+                    <div class="task-body">
+                        <!-- 'task-desc' class handles the whitespace: pre-wrap formatting -->
+                        <div class="task-desc">${t.description || '<span style="color:#ddd; font-style:italic;">No description provided...</span>'}</div>
+                        
+                        ${t.attachment_path ? `
+                            <div style="margin-top:12px; font-size:0.85rem; color:var(--primary); display:flex; align-items:center; gap:5px;">
+                                <i class="bi bi-paperclip"></i> <span>Attachment</span>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <!-- Footer: Meta Data & Status Select -->
+                    <div class="task-footer">
+                        <div class="task-meta">
+                            <div class="assignee-badge">
+                                <div class="assignee-avatar">${avatarLetter}</div>
+                                <span>${assignee.username}</span>
+                            </div>
+                            <div class="task-date" style="color: ${dateColor}">
+                                <i class="bi bi-calendar"></i> ${t.due_date}
                             </div>
                         </div>
-                        <h4 class="mt-2 ${isOverdue ? 'overdue-text' : ''}" style="font-size:1.1rem; margin-bottom:10px;">${t.name}</h4>
-                        <p class="preserve-text" style="color:var(--text-muted); font-size:0.9rem; margin-bottom:15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                            ${t.description||'No description'}
-                        </p>
-                    </div>
-                    
-                    <div style="margin-top:auto; padding-top:15px; border-top:1px solid rgba(0,0,0,0.05);">
-                        <div class="flex-between">
-                            ${assigneeHtml}
-                            <small style="color:${isOverdue ? '#ef4444' : 'var(--text-light)'}; font-weight:${isOverdue?700:400}">
-                                <i class="bi bi-calendar"></i> ${t.due_date||'--'}
-                            </small>
-                        </div>
-                        
-                        <div class="mt-2">
-                            <select onchange="updateTaskStatus(${t.id}, this.value)" style="width:100%; margin:0; padding:5px; font-size:0.85rem; border:1px solid #eee; border-radius:6px; cursor:pointer;">
-                                <option value="Todo" ${t.status==='Todo'?'selected':''}>To Do</option>
-                                <option value="In Progress" ${t.status==='In Progress'?'selected':''}>In Progress</option>
-                                <option value="Done" ${t.status==='Done'?'selected':''}>Done</option>
-                            </select>
-                        </div>
+
+                        <select class="task-status-select" onchange="updateTaskStatus(${t.id}, this.value)">
+                            <option value="Todo" ${t.status === 'Todo' ? 'selected' : ''}>To Do</option>
+                            <option value="In Progress" ${t.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                            <option value="Done" ${t.status === 'Done' ? 'selected' : ''}>Done</option>
+                            <option value="On Hold" ${t.status === 'On Hold' ? 'selected' : ''}>On Hold</option>
+                        </select>
                     </div>
                 `;
                 container.appendChild(div);

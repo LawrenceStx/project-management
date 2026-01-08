@@ -147,6 +147,10 @@ exports.changePassword = async (req, res) => {
 };
 exports.getMemberStats = (req, res) => {
     const { projectId } = req.params;
+    
+    // UPDATED QUERY: 
+    // 1. Gets users in the project.
+    // 2. Joins tasks directly on assigned_to_id.
     const query = `
         SELECT 
             u.id, u.username, pm.role_in_project,
@@ -158,6 +162,7 @@ exports.getMemberStats = (req, res) => {
         WHERE pm.project_id = ?
         GROUP BY u.id
     `;
+    
     db.all(query, [projectId], (err, rows) => {
         if (err) return res.status(500).json({ error: 'Failed to fetch stats.' });
         res.json(rows);
