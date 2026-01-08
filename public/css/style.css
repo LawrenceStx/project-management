@@ -552,3 +552,34 @@ input, select, textarea {
     cursor: pointer;
     accent-color: var(--primary);
 }
+
+/* Default (Todo) - Clean White */
+.task-card.status-Todo {
+    background: #ffffff;
+    border-left: 5px solid #e5e7eb; /* Light Gray Accent */
+}
+
+/* In Progress - Light Blue Tint */
+.task-card.status-In {
+    background: #eff6ff; /* Very light blue */
+    border-left: 5px solid #3b82f6; /* Blue Accent */
+}
+
+/* Done - Light Green Tint */
+.task-card.status-Done {
+    background: #ecfdf5; /* Very light green */
+    border-left: 5px solid #10b981; /* Green Accent */
+    opacity: 0.8; /* Slightly faded to show it's finished */
+}
+
+/* Overdue - Light Red Tint */
+.task-card.overdue {
+    background: #fef2f2; /* Very light red */
+    border-left: 5px solid #ef4444; /* Red Accent */
+    border-color: #fecaca; /* Reddish border all around */
+}
+
+/* Fix Status Select Colors in Footer */
+.task-card.status-In .task-status-select { border-color: #93c5fd; color: #1e40af; }
+.task-card.status-Done .task-status-select { border-color: #6ee7b7; color: #065f46; }
+.task-card.overdue .task-status-select { border-color: #fca5a5; color: #991b1b; }

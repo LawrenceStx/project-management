@@ -518,11 +518,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(tasks.length === 0) { container.innerHTML = '<p class="span-4 text-center">No tasks found.</p>'; return; }
 
             tasks.forEach(t => {
-                // 1. Determine Assignee (Since tasks are split, we look for the first one)
+                // 1. Determine Assignee
                 const assignee = t.assignees && t.assignees.length > 0 
                     ? t.assignees[0] 
                     : { username: 'Unassigned', id: null };
-                
                 const avatarLetter = assignee.username.charAt(0).toUpperCase();
 
                 // 2. Overdue Logic
@@ -532,17 +531,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 todayObj.setHours(0,0,0,0);
                 
                 const isOverdue = t.status !== 'Done' && dueDateObj < todayObj;
-                const overdueClass = isOverdue ? 'overdue' : ''; // Used for red border in CSS
+                
+                // 3. Status Classes (THE FIX)
+                const statusMap = { 'In Progress': 'status-In', 'Done': 'status-Done', 'Todo': 'status-Todo' };
+                const statusClass = statusMap[t.status] || 'status-Todo';
+                
+                // Apply 'overdue' if needed, otherwise apply the status color
+                const finalClass = isOverdue ? 'overdue' : statusClass; 
                 const dateColor = isOverdue ? '#ef4444' : '#9ca3af';
 
-                // 3. Prepare Data for OnClick
+                // 4. Prepare Data
                 const taskJson = JSON.stringify(t).replace(/'/g, "&#39;");
 
-                // 4. Create Card Element
+                // 5. Create Card
                 const div = document.createElement('div');
-                div.className = `task-card fade-up ${overdueClass}`; 
+                // Added ${finalClass} here so CSS can see it
+                div.className = `task-card fade-up ${finalClass}`; 
                 div.innerHTML = `
-                    <!-- Header: Title & Actions -->
                     <div class="task-header">
                         <h4 class="task-title" title="${t.name}">${t.name}</h4>
                         <div class="task-actions">
@@ -554,11 +559,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     </div>
 
-                    <!-- Body: Description & Attachment Indicator -->
                     <div class="task-body">
-                        <!-- 'task-desc' class handles the whitespace: pre-wrap formatting -->
                         <div class="task-desc">${t.description || '<span style="color:#ddd; font-style:italic;">No description provided...</span>'}</div>
-                        
                         ${t.attachment_path ? `
                             <div style="margin-top:12px; font-size:0.85rem; color:var(--primary); display:flex; align-items:center; gap:5px;">
                                 <i class="bi bi-paperclip"></i> <span>Attachment</span>
@@ -566,7 +568,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ` : ''}
                     </div>
 
-                    <!-- Footer: Meta Data & Status Select -->
                     <div class="task-footer">
                         <div class="task-meta">
                             <div class="assignee-badge">
